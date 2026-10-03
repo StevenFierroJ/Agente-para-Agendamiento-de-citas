@@ -26,6 +26,9 @@ export const SITUACIONES = [
   // Barandilla de datos (D-26)
   'dato_sin_respaldo_corregido',  // el modelo cita un dato que no está en la evidencia y lo corrige
   'dato_sin_respaldo_descartado', // insiste: se descarta su respuesta, mensaje fijo y escala
+  'escalamiento_prometido',       // "te paso con un asesor" sin la herramienta: el código escala (D-29)
+  'cita_afirmada_sin_agendar',    // "tu cita está agendada" sin agendar_cita: corrige o se descarta (D-29)
+  'respuesta_vacia_tras_accion',  // texto vacío después de escalar o agendar: el código redacta (D-29)
   // Hora de Colombia
   'zona_horaria',
   // Caminos felices (para que el goldset también diga que lo normal funciona)

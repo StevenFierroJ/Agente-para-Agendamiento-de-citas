@@ -9,6 +9,10 @@ export interface HechosDelTurno {
   fallaDelLlm: boolean;
   /** La respuesta final tenía datos sin respaldo aun después de la corrección (D-26). */
   datoSinRespaldo: boolean;
+  /** La respuesta prometió pasar con un humano sin llamar a escalar_a_humano (D-29). */
+  escalamientoPrometido: boolean;
+  /** Afirmó una cita que no agendó, aun después de la corrección (D-29). */
+  citaNoAgendada: boolean;
 }
 
 /**
@@ -17,7 +21,7 @@ export interface HechosDelTurno {
  * hay algo que un humano tiene que mirar.
  */
 export function estadoFinalDelTurno(hechos: HechosDelTurno): EstadoFinalTurno {
-  if (hechos.escaloElModelo || hechos.agotoIteraciones || hechos.fallaDelLlm || hechos.datoSinRespaldo) return 'escalada';
+  if (hechos.escaloElModelo || hechos.agotoIteraciones || hechos.fallaDelLlm || hechos.datoSinRespaldo || hechos.escalamientoPrometido || hechos.citaNoAgendada) return 'escalada';
   if (hechos.agendoCita) return 'cita_agendada';
   return 'resuelta_por_ia';
 }

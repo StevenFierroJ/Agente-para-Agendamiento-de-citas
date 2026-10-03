@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import type { PgBoss } from 'pg-boss';
-import type { Herramienta, LlmClient } from './aplicacion/puertos.js';
+import type { Herramienta, LlmClient, VerificadorAfirmaciones } from './aplicacion/puertos.js';
 import { iniciarTrabajador, type Trabajador } from './aplicacion/trabajador.js';
 import { crearApi } from './http/api.js';
 import { iniciarCola, type OpcionesCola } from './infraestructura/cola/cola.js';
@@ -19,6 +19,7 @@ export interface OpcionesSistema {
   /** Si se pasa, se levanta el trabajador con este LLM. */
   trabajador?: {
     llm: LlmClient;
+    verificador: VerificadorAfirmaciones | null;
     /** Recibe la agenda del sistema: las herramientas consultan la misma base. */
     crearHerramientas: (dependencias: { agenda: Agenda; mensajes: RepositorioMensajes; conocimiento: BaseConocimiento }) => ReadonlyMap<string, Herramienta>;
     timeoutMs: number;
@@ -54,6 +55,7 @@ export async function levantarSistema(opciones: OpcionesSistema): Promise<Sistem
         boss,
         {
           llm: opciones.trabajador.llm,
+          verificador: opciones.trabajador.verificador,
           herramientas: opciones.trabajador.crearHerramientas({
             agenda: new AgendaPostgres(pool),
             mensajes: new RepositorioMensajesPostgres(pool),

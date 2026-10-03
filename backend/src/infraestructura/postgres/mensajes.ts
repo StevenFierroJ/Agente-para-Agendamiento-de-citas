@@ -77,6 +77,14 @@ export class RepositorioMensajesPostgres implements RepositorioMensajes {
     if (r.rowCount !== 1) throw new Error(`No existe la conversación ${conversacionId}`);
   }
 
+  async citasActivas(conversacionId: number): Promise<number> {
+    const { rows } = await this.pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM citas WHERE conversacion_id = $1 AND estado = 'activa'",
+      [conversacionId],
+    );
+    return rows[0]?.n ?? 0;
+  }
+
   async catalogo(): Promise<Catalogo> {
     const [sedes, especialidades] = await Promise.all([
       this.pool.query<ItemCatalogo>('SELECT id, nombre FROM sedes ORDER BY nombre'),

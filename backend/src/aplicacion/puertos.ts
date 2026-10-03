@@ -66,6 +66,14 @@ export interface LlmClient {
   completar(pedido: PedidoLlm): Promise<RespuestaLlm>;
 }
 
+/**
+ * Verifica afirmaciones de la respuesta que las reglas no cubren con seguridad
+ * (paráfrasis). Solo se consulta cuando un filtro determinista lo justifica.
+ */
+export interface VerificadorAfirmaciones {
+  afirmaCitaAgendada(respuesta: string): Promise<boolean>;
+}
+
 // ---------------------------------------------------------------------------
 // Herramientas
 // ---------------------------------------------------------------------------
@@ -141,6 +149,8 @@ export interface RepositorioMensajes {
   marcar(messageId: string, estado: EstadoMensajeEntrante): Promise<void>;
   actualizarEstadoConversacion(conversacionId: number, estado: EstadoConversacion): Promise<void>;
   catalogo(): Promise<Catalogo>;
+  /** Citas activas de la conversación antes del turno: una confirmación sobre ellas no es una afirmación falsa. */
+  citasActivas(conversacionId: number): Promise<number>;
 }
 
 /**
@@ -165,6 +175,13 @@ export interface RegistroMensaje {
   guardado_en: Date;
 }
 
+export type ControlTurno =
+  | { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }
+  | { tipo: 'escalamiento_prometido'; datos: string[]; accion: 'escalar' }
+  | { tipo: 'cita_no_agendada'; datos: string[]; accion: 'corregir' | 'descartar' }
+  // El verificador falló: se decidió solo con las reglas. Queda en la traza, no se esconde.
+  | { tipo: 'verificador_no_disponible'; datos: string[]; accion: 'solo_reglas' };
+
 export interface RegistroTurno {
   id: string; // message_id
   conversacion_id: number;
@@ -179,7 +196,7 @@ export interface RegistroTurno {
   iteraciones: number;
   llamadas_llm: { intento: number; latencia_ms: number; tokens_entrada: number; tokens_salida: number; error: string | null }[];
   herramientas: { nombre: string; argumentos: unknown; resultado: unknown; error: string | null; duracion_ms: number }[];
-  controles: { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }[];
+  controles: ControlTurno[];
   estado_final: EstadoFinalTurno;
   error: string | null;
 }

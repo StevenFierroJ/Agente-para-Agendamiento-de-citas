@@ -1,0 +1,48 @@
+{
+  "id": "guardrail-cita-afirmada-descartada",
+  "descripcion": "El modelo afirma la cita dos veces sin agendarla: se descarta su respuesta, el paciente recibe un mensaje fijo y la conversación escala. No queda ninguna cita inventada.",
+  "cubre": [
+    "cita_afirmada_sin_agendar"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.cita-afirmada-2.1",
+        "from": "+573000000035",
+        "text": "Sí, esa cita me sirve",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "Perfecto, tu cita está confirmada."
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo, tu cita quedó agendada."
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "controles": [
+          "corregir",
+          "descartar"
+        ],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 0
+  }
+}

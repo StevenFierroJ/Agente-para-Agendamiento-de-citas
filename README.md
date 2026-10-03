@@ -135,10 +135,10 @@ nunca llaman al LLM real ni descargan el modelo de embeddings.
 
 ```bash
 cd backend
-npm test                    # 174 tests (Vitest), sin LLM real
+npm test                    # 211 tests (Vitest), sin LLM real
 npm run typecheck
 
-npm run harness:gold        # 27 conversaciones guionadas por el sistema completo (no gasta)
+npm run harness:gold        # 31 conversaciones guionadas por el sistema completo (no gasta)
 npm run harness:gold -- --modo real                    # 10 casos con Haiku real (gasta ~USD 0,05)
 npm run harness:carga       # volumen: 2.000 mensajes, duplicados, disputas, caos opcional
 npm run harness:rag         # Recall@k, MRR y AUC del RAG; calibración del umbral

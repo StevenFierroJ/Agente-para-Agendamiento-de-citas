@@ -44,15 +44,17 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
   });
 
   const ahora = ahoraDelMensaje(mensaje.enviadoEn);
-  const [historial, catalogo] = await Promise.all([
+  const [historial, catalogo, citasActivas] = await Promise.all([
     deps.almacen.historial(mensaje.conversacionId, LIMITE_HISTORIAL),
     deps.mensajes.catalogo(),
+    deps.mensajes.citasActivas(mensaje.conversacionId),
   ]);
   const turno = await ejecutarTurno(
     {
       messageId,
       conversacionId: mensaje.conversacionId,
       estadoConversacion: mensaje.estadoConversacion,
+      citasActivas,
       ahora,
       promptSistema: construirPromptSistema({
         tiempo: contextoTemporal(ahora),

@@ -1,0 +1,45 @@
+{
+  "id": "guardrail-escalamiento-prometido",
+  "descripcion": "El paciente pide una persona y el modelo responde \"te paso con un asesor\" sin llamar a escalar_a_humano (pasó con Haiku real). El código cumple la promesa: la conversación queda escalada y el control queda en la traza.",
+  "cubre": [
+    "escalamiento_prometido"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.promesa.1",
+        "from": "+573000000033",
+        "text": "Mejor quiero hablar con una persona",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "Claro, te paso con un asesor de la clínica en un momento."
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "controles": [
+          "escalar"
+        ],
+        "estado_final": "escalada"
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000033": {
+        "estado": "escalada",
+        "citas_activas": 0
+      }
+    }
+  }
+}

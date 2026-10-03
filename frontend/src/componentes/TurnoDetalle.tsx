@@ -38,7 +38,13 @@ export function TurnoDetalle({ turno }: { turno: Turno }) {
             <dd>
               {controles.map((c, i) => (
                 <div key={i}>
-                  {c.accion === 'corregir' ? 'pidió corregir' : 'descartó la respuesta'}: {c.datos.join(', ')}
+                  {c.tipo === 'escalamiento_prometido'
+                    ? 'prometió un asesor sin escalar: el código escaló'
+                    : c.tipo === 'verificador_no_disponible'
+                      ? `verificador no disponible, decidieron las reglas: ${c.datos.join(', ')}`
+                    : `${c.tipo === 'cita_no_agendada' ? 'afirmó una cita sin agendarla' : 'datos sin respaldo'} → ${
+                        c.accion === 'corregir' ? 'pidió corregir' : 'descartó la respuesta'
+                      }${c.datos.length ? `: ${c.datos.join(', ')}` : ''}`}
                 </div>
               ))}
             </dd>

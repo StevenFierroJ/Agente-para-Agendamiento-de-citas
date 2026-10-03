@@ -1,0 +1,57 @@
+{
+  "id": "escalado-respuesta-vacia",
+  "descripcion": "Pasó con Haiku real: escala bien con la herramienta y después devuelve texto vacío. No es una falla: la acción ocurrió y el código responde con el mensaje fijo de escalamiento.",
+  "cubre": [
+    "respuesta_vacia_tras_accion",
+    "escalamiento_por_modelo"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.vacia.1",
+        "from": "+573000000036",
+        "text": "Mejor quiero hablar con una persona",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "escalar_a_humano",
+              "argumentos": {
+                "motivo": "solicitud_del_paciente"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": ""
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "escalar_a_humano",
+            "error": null
+          }
+        ],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ],
+        "respuesta_no_contiene": [
+          "no podemos responderte"
+        ]
+      }
+    }
+  ]
+}

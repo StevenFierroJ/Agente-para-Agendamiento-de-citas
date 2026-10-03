@@ -276,7 +276,7 @@ Ahorros posibles, cada uno con su costo:
 
 ## 5. Confiabilidad
 
-**Que no invente.** Son tres capas, porque ninguna alcanza sola (D-26):
+**Que no invente datos.** Son tres capas, porque ninguna alcanza sola (D-26):
 1. el umbral de similitud, que filtra lo que está fuera de dominio;
 2. el prompt (si no está en los fragmentos, ni lo afirma ni lo niega);
 3. una verificación determinista en código: todo número de la respuesta
@@ -289,6 +289,13 @@ del 92 % en preguntas con respuesta, abstención correcta del 94 % en preguntas 
 respuesta e invención global del 3 % (1 de 40: una negación sin cifras, que la
 capa 3 no puede ver).
 
+**Que no afirme acciones que no hizo** (D-29): una cita que la respuesta afirma
+tiene que haberse agendado en el turno (detección por reglas, más un verificador
+con Haiku para las paráfrasis), y una promesa de pasar con un humano se cumple
+escalando. En 10 conversaciones reales, Haiku afirmó la cita sin agendarla en la
+mitad de los turnos de confirmación; la barandilla corrigió 4 y escaló 1, y
+**ninguna confirmación falsa llegó al paciente.**
+
 **Si el LLM falla o tarda:** 20 s de límite por llamada con un reintento propio.
 Si falla de nuevo, el paciente recibe un mensaje fijo y la conversación queda
 `escalada`, con el error en la traza. Una conversación escalada no vuelve a llamar
@@ -296,16 +303,17 @@ al LLM. Si se agotan los reintentos de infraestructura (por ejemplo, MongoDB
 caído), el mensaje queda `fallido` sin bloquear la conversación (D-14).
 
 **Cómo se verificó:**
-- **174 tests** contra PostgreSQL y MongoDB reales, sin LLM real.
-- **Goldset de 28 conversaciones:** cubre cada código de error, las fallas del
-  LLM, duplicados, concurrencia, zona horaria y la barandilla. 27 se corren con
-  el LLM falso y 10 también con Haiku real.
+- **211 tests** contra PostgreSQL y MongoDB reales, sin LLM real.
+- **Goldset de 32 conversaciones:** cubre cada código de error, las fallas del
+  LLM, duplicados, concurrencia, zona horaria y las barandillas. 31 se corren
+  con el LLM falso y 10 también con Haiku real.
 - **Harness de volumen:** 2.100 mensajes con duplicados, disputas por horario y
   caos del LLM y de MongoDB, verificando 7 invariantes.
 
-Tres bugs reales los encontraron los harness, no los tests: el historial en
-reintentos (D-22), el umbral en 0 por una variable vacía (D-25) y el ejemplo del
-enunciado sin agenda (D-10).
+Los bugs más serios no los encontraron los tests: el historial en reintentos
+(D-22) y el umbral en 0 por una variable vacía (D-25) los encontraron los
+harness; el desorden con timestamps iguales (D-28) y las acciones afirmadas sin
+hacerse (D-29), seguir el README desde un clon limpio con el modelo real.
 
 ## 6. Costo
 
@@ -349,6 +357,7 @@ millón de tokens (página oficial, 2026-10-03):
 | El historial que ve el modelo es solo texto (D-16) | Menos tokens por turno | Una consulta de disponibilidad extra al agendar |
 | El umbral del RAG está calibrado sobre el mismo goldset (D-25) | Un valor medido y no intuido | Sin datos apartados; margen de 0,001 |
 | Barandilla numérica determinista (D-26) | Sin costo ni latencia, explicable y testeable | No ve afirmaciones sin cifras |
+| Cita afirmada: reglas más verificador LLM solo cuando un filtro dispara (D-29) | Cubre paráfrasis sin pagar una llamada en cada turno | Una paráfrasis que no pase el filtro amplio (sin "cita" ni raíz de reservar) no se verifica |
 | Estado de la conversación que solo sube (D-05) | La bandeja no esconde citas por un "gracias" | Una conversación con cita antigua sigue como `cita_agendada` |
 | Sin coincidencia difusa en sedes y especialidades (D-11) | Nunca agenda en el lugar equivocado | El modelo a veces tiene que preguntar |
 | Embeddings locales en la prueba | Sin costo ni red, y tests rápidos | El trabajador carga 118 MB al arrancar |
@@ -390,7 +399,10 @@ tiene una regla de consistencia.
   - correr el goldset real en cada cambio de prompt o de modelo, con el costo
     reportado;
   - un verificador LLM como cuarta capa contra afirmaciones sin cifras (D-26),
-    si la tasa de invención real lo justifica.
+    si la tasa de invención real lo justifica;
+  - memoria de herramientas en el historial (los `horario_id` ofrecidos), para
+    que el modelo agende en lugar de afirmar (D-29) y se ahorre la segunda
+    consulta (D-16).
 - **Observabilidad:** OpenTelemetry con un span por turno, por llamada al LLM y
   por herramienta, y un panel de costo por clínica y de tasas de escalamiento,
   barandilla y falla.
@@ -769,4 +781,47 @@ devolvió una respuesta vacía, que terminó en falla técnica y escalamiento.
 Hay un test de regresión, y se verificó que falla sin la corrección. En la misma
 verificación, Haiku pidió confirmación antes de escalar a quien pidió "hablar con
 una persona"; ahora el prompt indica escalar de inmediato.
+
+### D-29 · Acciones que el modelo afirma: la cita tiene que existir y el humano tiene que llegar
+Lo encontró la verificación del README con Haiku real, en tres formas:
+1. Respondió "te paso con un asesor" sin llamar a `escalar_a_humano`: la
+   conversación no aparecía como escalada en la bandeja.
+2. Escaló bien y después devolvió texto vacío; el código lo trataba como falla
+   técnica.
+3. **El más grave:** respondió "tu cita está agendada" sin llamar a
+   `agendar_cita`. El paciente creía tener una cita que no existía.
+
+Corrección, siempre en código:
+- **Cita afirmada.** Si la respuesta afirma una cita y en el turno no hubo
+  `agendar_cita` exitoso ni la conversación tenía una cita activa, el modelo
+  recibe una corrección; si insiste, se descarta su respuesta, va un mensaje
+  fijo y la conversación escala. La detección tiene dos capas:
+  - reglas para las frases conocidas ("está agendada", "confirmo tu cita",
+    "he agendado…");
+  - un filtro amplio (oración afirmativa con "cita" y una raíz de reservar)
+    que, cuando dispara, consulta a un verificador con Haiku: una llamada corta
+    que entiende paráfrasis.
+
+  Se llegó a las dos capas porque las reglas solas perdían cada paráfrasis nueva
+  ("confirmo", "he agendado"). Si el verificador falla, deciden las reglas y la
+  falla queda en la traza.
+- **Promesa de un humano:** si la respuesta promete pasar con un asesor (no si
+  lo ofrece como pregunta) sin la herramienta, el código escala.
+- **Texto vacío después de una acción exitosa:** el código redacta. Si escaló,
+  va un mensaje fijo; si agendó, una confirmación con los datos reales de la
+  cita.
+
+**Medido** con 10 conversaciones reales del enunciado:
+
+| Resultado | Corridas |
+|---|---|
+| Agendó sin ayuda | 5 |
+| Afirmó sin agendar, la barandilla corrigió y agendó | 4 |
+| Insistió, se descartó la respuesta y se escaló con un mensaje honesto | 1 |
+| Confirmaciones falsas que llegaron al paciente | **0** (antes de la barandilla, 1 de cada 3 a 5) |
+
+Que Haiku afirme la cita sin agendarla en la mitad de los turnos de confirmación
+viene de la D-16: el historial no trae los `horario_id` ofrecidos. Darle esa
+memoria bajaría las correcciones y su costo (cada una es una iteración más). Es
+el siguiente paso, y está medido.
 

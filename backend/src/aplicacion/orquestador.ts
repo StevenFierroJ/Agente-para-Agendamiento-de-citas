@@ -1,9 +1,12 @@
 import type { DateTime } from 'luxon';
 import { estadoFinalDelTurno, type EstadoFinalTurno } from '../dominio/estados.js';
+import { afirmaCitaAgendada, mencionaReservaDeCita, prometeEscalamiento } from '../dominio/promesas.js';
 import { datosSinRespaldo } from '../dominio/respaldo.js';
 import type { EstadoConversacion } from '../dominio/errores.js';
-import { MENSAJE_CONVERSACION_ESCALADA, MENSAJE_FALLA_TECNICA, MENSAJE_SIN_RESPALDO, MENSAJE_TOPE_ITERACIONES } from './mensajes-fijos.js';
-import type { DefinicionHerramienta, Herramienta, LlamadaHerramienta, LlmClient, MensajeLlm, ResultadoHerramienta, RespuestaLlm } from './puertos.js';
+import {
+  MENSAJE_CITA_NO_CONFIRMADA, MENSAJE_CONVERSACION_ESCALADA, MENSAJE_ESCALADO, MENSAJE_FALLA_TECNICA, MENSAJE_SIN_RESPALDO, MENSAJE_TOPE_ITERACIONES,
+} from './mensajes-fijos.js';
+import type { ControlTurno, DefinicionHerramienta, Herramienta, VerificadorAfirmaciones, LlamadaHerramienta, LlmClient, MensajeLlm, ResultadoHerramienta, RespuestaLlm } from './puertos.js';
 
 export interface TrazaHerramientaTurno {
   nombre: string;
@@ -31,7 +34,7 @@ export interface ResultadoTurno {
   iteraciones: number;
   llamadasLlm: TrazaLlamadaLlmTurno[];
   herramientas: TrazaHerramientaTurno[];
-  controles: { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }[];
+  controles: ControlTurno[];
   /** Por qué el turno terminó escalado por el código (falla del LLM, tope); null si no. */
   error: string | null;
 }
@@ -41,12 +44,16 @@ export interface DependenciasOrquestador {
   herramientas: ReadonlyMap<string, Herramienta>;
   timeoutMs: number;
   maxIteraciones: number;
+  /** null = solo reglas deterministas (tests y harness en modo guion). */
+  verificador: VerificadorAfirmaciones | null;
 }
 
 export interface EntradaTurno {
   messageId: string;
   conversacionId: number;
   estadoConversacion: EstadoConversacion;
+  /** Citas activas de la conversación antes de este turno. */
+  citasActivas: number;
   ahora: DateTime;
   promptSistema: string;
   /** Historial ya incluye el mensaje actual del paciente, como último elemento. */
@@ -86,7 +93,8 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
 
   const definiciones = [...deps.herramientas.values()].map((h) => h.definicion);
   const mensajes: MensajeLlm[] = [{ rol: 'sistema', contenido: entrada.promptSistema }, ...entrada.historial];
-  const hechos = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false, datoSinRespaldo: false };
+  const hechos = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false, datoSinRespaldo: false, escalamientoPrometido: false, citaNoAgendada: false };
+  let citaAgendada: Record<string, unknown> | null = null;
   // Evidencia del turno para la barandilla de datos (D-26): lo que el modelo puede
   // citar. Sus propios argumentos no cuentan: podrían ser inventados.
   const evidencias: string[] = [entrada.promptSistema, ...entrada.historial.flatMap((m) => ('contenido' in m ? [m.contenido] : []))];
@@ -108,9 +116,15 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
     if (respuesta.llamadas.length === 0) {
       const texto = respuesta.texto?.trim() ?? '';
       if (!texto) {
-        hechos.fallaDelLlm = true;
-        resultado.error = 'respuesta_vacia: el modelo no devolvió texto ni herramientas';
-        resultado.respuesta = MENSAJE_FALLA_TECNICA;
+        // Texto vacío tras una acción exitosa no es una falla: la acción ocurrió y
+        // el código redacta la respuesta con sus datos reales.
+        if (hechos.escaloElModelo) resultado.respuesta = MENSAJE_ESCALADO;
+        else if (citaAgendada) resultado.respuesta = confirmacionDeCita(citaAgendada);
+        else {
+          hechos.fallaDelLlm = true;
+          resultado.error = 'respuesta_vacia: el modelo no devolvió texto ni herramientas';
+          resultado.respuesta = MENSAJE_FALLA_TECNICA;
+        }
         resultado.estadoFinal = estadoFinalDelTurno(hechos);
         return resultado;
       }
@@ -118,7 +132,7 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
       // Barandilla: todo dato verificable de la respuesta tiene que estar en la evidencia.
       const sinRespaldo = datosSinRespaldo(texto, evidencias);
       if (sinRespaldo.length > 0) {
-        const yaCorregido = resultado.controles.length > 0;
+        const yaCorregido = resultado.controles.some((c) => c.tipo === 'datos_sin_respaldo');
         if (!yaCorregido && resultado.iteraciones < deps.maxIteraciones) {
           resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'corregir' });
           mensajes.push({ rol: 'asistente', contenido: texto });
@@ -131,6 +145,29 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
         resultado.respuesta = MENSAJE_SIN_RESPALDO;
         resultado.estadoFinal = estadoFinalDelTurno(hechos);
         return resultado;
+      }
+
+      // Barandilla: una cita afirmada tiene que existir (agendada en este turno o ya activa).
+      if (!hechos.agendoCita && entrada.citasActivas === 0 && (await afirmaCita(texto, deps.verificador, resultado.controles))) {
+        const yaCorregida = resultado.controles.some((c) => c.tipo === 'cita_no_agendada');
+        if (!yaCorregida && resultado.iteraciones < deps.maxIteraciones) {
+          resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'corregir' });
+          mensajes.push({ rol: 'asistente', contenido: texto });
+          mensajes.push({ rol: 'control', contenido: CORRECCION_CITA });
+          continue;
+        }
+        resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'descartar' });
+        hechos.citaNoAgendada = true;
+        resultado.error = 'cita_no_agendada: la respuesta afirmó una cita que no se agendó';
+        resultado.respuesta = MENSAJE_CITA_NO_CONFIRMADA;
+        resultado.estadoFinal = estadoFinalDelTurno(hechos);
+        return resultado;
+      }
+
+      // Barandilla: si prometió pasar con un humano sin usar la herramienta, el código cumple la promesa.
+      if (!hechos.escaloElModelo && prometeEscalamiento(texto)) {
+        hechos.escalamientoPrometido = true;
+        resultado.controles.push({ tipo: 'escalamiento_prometido', datos: [], accion: 'escalar' });
       }
 
       resultado.respuesta = texto;
@@ -149,7 +186,10 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
         error: salida.ok ? null : salida.error,
         duracion_ms: Math.round(performance.now() - inicio),
       });
-      if (salida.ok && llamada.nombre === HERRAMIENTA_AGENDAR) hechos.agendoCita = true;
+      if (salida.ok && llamada.nombre === HERRAMIENTA_AGENDAR) {
+        hechos.agendoCita = true;
+        citaAgendada = salida.datos as Record<string, unknown>;
+      }
       if (salida.ok && llamada.nombre === HERRAMIENTA_ESCALAR) hechos.escaloElModelo = true;
       mensajes.push({ rol: 'herramienta', llamadaId: llamada.id, contenido: JSON.stringify(salida), esError: !salida.ok });
       evidencias.push(JSON.stringify(salida, (clave, valor: unknown) => (clave === 'similitud' ? undefined : valor)));
@@ -234,6 +274,35 @@ async function ejecutarHerramienta(
   }
   const salida = await herramienta.ejecutar(argumentos, { conversacionId: entrada.conversacionId, ahora: entrada.ahora });
   return { argumentos, salida };
+}
+
+/**
+ * ¿La respuesta afirma una cita? Regla rápida para las frases conocidas; para el
+ * resto, si el filtro amplio dispara, el verificador (LLM) decide. Si el
+ * verificador falla, queda la regla: no se bloquea el turno por el control.
+ */
+async function afirmaCita(texto: string, verificador: VerificadorAfirmaciones | null, controles: ControlTurno[]): Promise<boolean> {
+  if (afirmaCitaAgendada(texto)) return true;
+  if (!verificador || !mencionaReservaDeCita(texto)) return false;
+  try {
+    return await verificador.afirmaCitaAgendada(texto);
+  } catch (error) {
+    // Capa adicional: si falla, decide la regla (que ya dijo que no) y la falla queda en la traza.
+    controles.push({ tipo: 'verificador_no_disponible', datos: [describir(error)], accion: 'solo_reglas' });
+    return false;
+  }
+}
+
+const CORRECCION_CITA = [
+  'Control automático: tu respuesta afirma que la cita quedó agendada, pero en este turno no se llamó a agendar_cita.',
+  'Una cita solo existe si agendar_cita responde con éxito: consulta la disponibilidad para obtener el horario_id y llama a agendar_cita.',
+  'Si te falta algún dato, pregúntalo y no afirmes que la cita está agendada.',
+].join(' ');
+
+/** Confirmación redactada por el código con los datos que devolvió agendar_cita. */
+function confirmacionDeCita(datos: Record<string, unknown>): string {
+  const inicio = String(datos['inicio'] ?? '').replace('T', ' a las ');
+  return `Tu cita quedó agendada: ${String(datos['especialidad'])} en la ${String(datos['sede'])}, el ${inicio}, con ${String(datos['profesional'])}.`;
 }
 
 function mensajeDeCorreccion(datos: readonly string[]): string {

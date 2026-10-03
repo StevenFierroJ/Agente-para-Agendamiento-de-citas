@@ -29,7 +29,7 @@ import { construirPromptSistema } from '../../src/aplicacion/prompt.js';
 import { leerConfig, preciosLlm } from '../../src/config.js';
 import { ahoraDelMensaje, contextoTemporal } from '../../src/dominio/fechas.js';
 import { EmbeddingE5 } from '../../src/infraestructura/embeddings/e5.js';
-import { crearLlmReal } from '../../src/infraestructura/llm/crear.js';
+import { crearLlmReal, crearVerificadorReal } from '../../src/infraestructura/llm/crear.js';
 import { AgendaPostgres } from '../../src/infraestructura/postgres/agenda.js';
 import { ConocimientoPostgres } from '../../src/infraestructura/postgres/conocimiento.js';
 import { RepositorioMensajesPostgres } from '../../src/infraestructura/postgres/mensajes.js';
@@ -111,11 +111,12 @@ async function main(): Promise<number> {
           messageId: `e2e.${i}`,
           conversacionId,
           estadoConversacion: 'abierta',
+          citasActivas: 0,
           ahora,
           promptSistema,
           historial: [{ rol: 'paciente', contenido: caso.pregunta }],
         },
-        { llm, herramientas, timeoutMs: config.LLM_TIMEOUT_MS, maxIteraciones: config.LLM_MAX_ITERACIONES },
+        { llm, herramientas, timeoutMs: config.LLM_TIMEOUT_MS, maxIteraciones: config.LLM_MAX_ITERACIONES, verificador: crearVerificadorReal(config) },
       );
       const juicio = await juzgarConConsistencia(juez, corpus, caso, turno.respuesta);
       tokensJuez = { entrada: tokensJuez.entrada + juicio.tokensEntrada, salida: tokensJuez.salida + juicio.tokensSalida };

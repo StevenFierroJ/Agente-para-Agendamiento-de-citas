@@ -1,0 +1,68 @@
+{
+  "id": "guardrail-cita-afirmada-corregida",
+  "descripcion": "Pasó con Haiku real: el paciente confirma y el modelo responde \"tu cita está agendada\" sin llamar a agendar_cita. La barandilla pide corregir; el modelo consulta, agenda de verdad y confirma.",
+  "cubre": [
+    "cita_afirmada_sin_agendar",
+    "cita_agendada"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.cita-afirmada.1",
+        "from": "+573000000034",
+        "text": "Sí, confirmo la de las 2 de la tarde del martes en la Sede Sur con dermatología. Soy Ana María Pérez",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "Excelente, tu cita está agendada ✅ Dermatología, Sede Sur, martes 6 a las 2:00 p. m."
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Dermatología",
+                    "sede": "Sede Sur",
+                    "inicio": "2026-10-06T14:00"
+                  }
+                },
+                "nombre_paciente": "Ana María Pérez"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo, tu cita quedó agendada: dermatología, Sede Sur, martes 6 a las 2:00 p. m."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "controles": [
+          "corregir"
+        ],
+        "estado_final": "cita_agendada"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1
+  }
+}

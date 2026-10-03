@@ -19,7 +19,7 @@ import { crearHerramientas } from '../../src/aplicacion/herramientas/registro.js
 import type { LlmClient } from '../../src/aplicacion/puertos.js';
 import { COLA_MENSAJES } from '../../src/infraestructura/cola/cola.js';
 import { EmbeddingE5 } from '../../src/infraestructura/embeddings/e5.js';
-import { crearLlmReal } from '../../src/infraestructura/llm/crear.js';
+import { crearLlmReal, crearVerificadorReal } from '../../src/infraestructura/llm/crear.js';
 import { LlmGuionado, type PedidoRegistrado, type RespuestaGuionada } from '../../src/infraestructura/llm/falso.js';
 import type { DocMensaje, DocTurno } from '../../src/infraestructura/mongo/mongo.js';
 import { registroSilencioso } from '../../src/infraestructura/registro.js';
@@ -83,6 +83,8 @@ async function main(): Promise<number> {
     cola: { reintentos: 3 },
     trabajador: {
       llm,
+      // Modo guion: solo reglas (determinista). Modo real: el verificador real, como en producción.
+      verificador: modo === 'guion' ? null : crearVerificadorReal(config),
       crearHerramientas: ({ agenda, mensajes, conocimiento }) =>
         crearHerramientas({ agenda, catalogo: mensajes, conocimiento: { embeddings, base: conocimiento, umbral: config.RAG_UMBRAL } }),
       timeoutMs: modo === 'guion' ? 2_000 : config.LLM_TIMEOUT_MS,

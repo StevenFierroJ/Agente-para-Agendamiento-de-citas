@@ -1,5 +1,6 @@
 import type { Config } from '../../config.js';
 import { LlmAnthropic } from './anthropic.js';
+import { VerificadorAnthropic } from './verificador.js';
 
 /** El LLM real según la configuración. Falla al arrancar si falta la key. */
 export function crearLlmReal(config: Config): LlmAnthropic {
@@ -7,4 +8,9 @@ export function crearLlmReal(config: Config): LlmAnthropic {
     throw new Error('Falta ANTHROPIC_API_KEY en .env (ver .env.example).');
   }
   return new LlmAnthropic({ modelo: config.LLM_MODEL, maxTokens: config.LLM_MAX_TOKENS, apiKey: config.ANTHROPIC_API_KEY });
+}
+
+export function crearVerificadorReal(config: Config): VerificadorAnthropic {
+  if (!config.ANTHROPIC_API_KEY) throw new Error('Falta ANTHROPIC_API_KEY en .env (ver .env.example).');
+  return new VerificadorAnthropic({ modelo: config.LLM_MODEL, apiKey: config.ANTHROPIC_API_KEY, timeoutMs: 5_000 });
 }

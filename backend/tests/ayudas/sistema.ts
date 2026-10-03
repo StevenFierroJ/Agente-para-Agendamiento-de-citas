@@ -1,7 +1,7 @@
 import { setTimeout as esperar } from 'node:timers/promises';
 import { MongoClient } from 'mongodb';
 import type pg from 'pg';
-import type { Herramienta } from '../../src/aplicacion/puertos.js';
+import type { Herramienta, VerificadorAfirmaciones } from '../../src/aplicacion/puertos.js';
 import { COLA_MENSAJES } from '../../src/infraestructura/cola/cola.js';
 import { LlmGuionado } from '../../src/infraestructura/llm/falso.js';
 import { registroSilencioso } from '../../src/infraestructura/registro.js';
@@ -42,6 +42,7 @@ export interface OpcionesSistemaDeTest {
   reintentos?: number;
   concurrencia?: number;
   timeoutMs?: number;
+  verificador?: VerificadorAfirmaciones;
 }
 
 export async function levantarSistemaDeTest(opciones: OpcionesSistemaDeTest = {}): Promise<{ sistema: Sistema; llm: LlmGuionado }> {
@@ -56,6 +57,7 @@ export async function levantarSistemaDeTest(opciones: OpcionesSistemaDeTest = {}
       : {
           trabajador: {
             llm,
+            verificador: opciones.verificador ?? null,
             crearHerramientas: () => opciones.herramientas ?? new Map(),
             timeoutMs: opciones.timeoutMs ?? 2_000,
             maxIteraciones: 5,

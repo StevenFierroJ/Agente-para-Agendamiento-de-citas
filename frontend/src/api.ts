@@ -37,7 +37,7 @@ export interface Turno {
   iteraciones: number;
   llamadas_llm: { intento: number; latencia_ms: number; error: string | null }[];
   herramientas: { nombre: string; argumentos: unknown; resultado: unknown; error: string | null; duracion_ms: number }[];
-  controles?: { tipo: string; datos: string[]; accion: 'corregir' | 'descartar' }[];
+  controles?: { tipo: string; datos: string[]; accion: 'corregir' | 'descartar' | 'escalar' | 'solo_reglas' }[];
   estado_final: Estado;
   error: string | null;
 }

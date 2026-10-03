@@ -51,7 +51,8 @@ const LlamadaGuionada = z
 
 export const PasoGuion = z.discriminatedUnion('tipo', [
   z.object({ tipo: z.literal('herramientas'), llamadas: z.array(LlamadaGuionada).min(1) }).strict(),
-  z.object({ tipo: z.literal('texto'), texto: z.string().min(1) }).strict(),
+  // Texto vacío permitido: el modelo real a veces termina sin texto (D-29).
+  z.object({ tipo: z.literal('texto'), texto: z.string() }).strict(),
   z.object({ tipo: z.literal('falla'), falla: z.enum(['timeout', 'error_proveedor']) }).strict(),
 ]);
 
@@ -78,7 +79,7 @@ const EsperaTurno = z
     // Sobre el prompt de sistema que recibió el LLM (fecha y hora de Colombia, sedes válidas).
     prompt_contiene: z.array(z.string()).optional(),
     // Acciones de la barandilla de datos, en orden (D-26).
-    controles: z.array(z.enum(['corregir', 'descartar'])).optional(),
+    controles: z.array(z.enum(['corregir', 'descartar', 'escalar'])).optional(),
   })
   .strict();
 

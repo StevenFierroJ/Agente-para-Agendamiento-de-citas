@@ -88,6 +88,7 @@ async function main(): Promise<number> {
     cola: { reintentos: 3 },
     trabajador: {
       llm,
+      verificador: null,
       // Los mensajes de carga no usan el RAG: embeddings falsos, sin descargar el modelo.
       crearHerramientas: ({ agenda, mensajes, conocimiento }) =>
         crearHerramientas({ agenda, catalogo: mensajes, conocimiento: { embeddings: new EmbeddingFalso(), base: conocimiento, umbral: 0.5 } }),

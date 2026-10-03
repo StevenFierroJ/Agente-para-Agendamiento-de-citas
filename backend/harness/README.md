@@ -8,7 +8,7 @@ sistema armado.
 | | Goldset (`gold/`) | Volumen (`carga/`) |
 |---|---|---|
 | Pregunta | ¿cada excepción se maneja como se decidió? | ¿las invariantes aguantan con concurrencia y duplicados? |
-| Entrada | 28 conversaciones (27 guionadas y 1 solo para el modelo real) | mensajes generados con semilla |
+| Entrada | 32 conversaciones (31 guionadas y 1 solo para el modelo real) | mensajes generados con semilla |
 | LLM | falso guionado (`guion`) o real (`real`) | falso, con latencia simulada |
 | Falla si | un turno o el estado final no coincide | se viola cualquier invariante |
 

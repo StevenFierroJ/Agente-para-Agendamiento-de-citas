@@ -104,3 +104,8 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   otra región. Se usó la Price List API oficial, que además etiqueta Single-AZ y
   Multi-AZ. El JSON de las páginas no lo hacía, y suponer cuál era cuál habría
   sido escribir de memoria con otro nombre.
+- **Barandillas escritas por regex que perdían cada paráfrasis.** La primera
+  detección de "cita afirmada sin agendar" enumeraba frases; Haiku encontró otra
+  en cada corrida ("confirmo tu cita", "he agendado tu cita"). Se pasó a un
+  filtro amplio con un verificador LLM, y se midió en 10 corridas reales en
+  lugar de dar por bueno un caso que pasó.

@@ -2,7 +2,7 @@
 import { crearHerramientas } from './aplicacion/herramientas/registro.js';
 import { leerConfig, preciosLlm } from './config.js';
 import { EmbeddingE5 } from './infraestructura/embeddings/e5.js';
-import { crearLlmReal } from './infraestructura/llm/crear.js';
+import { crearLlmReal, crearVerificadorReal } from './infraestructura/llm/crear.js';
 import { registroConsola } from './infraestructura/registro.js';
 import { levantarSistema } from './sistema.js';
 
@@ -13,6 +13,7 @@ const sistema = await levantarSistema({
   registro: registroConsola,
   trabajador: {
     llm: crearLlmReal(config),
+    verificador: crearVerificadorReal(config),
     crearHerramientas: ({ agenda, mensajes, conocimiento }) =>
       crearHerramientas({ agenda, catalogo: mensajes, conocimiento: { embeddings: new EmbeddingE5(), base: conocimiento, umbral: config.RAG_UMBRAL } }),
     timeoutMs: config.LLM_TIMEOUT_MS,

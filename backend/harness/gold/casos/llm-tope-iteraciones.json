@@ -1,0 +1,119 @@
+{
+  "id": "llm-tope-iteraciones",
+  "descripcion": "El modelo pide herramientas en las 5 iteraciones sin responder nunca: se corta y se escala.",
+  "cubre": [
+    "tope_iteraciones"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.tope.1",
+        "from": "+573000000020",
+        "text": "¿Qué hay de pediatría esta semana?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-05"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-06"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-08"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-09"
+              }
+            }
+          ]
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ]
+      }
+    }
+  ]
+}

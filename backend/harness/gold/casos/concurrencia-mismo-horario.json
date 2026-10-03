@@ -1,0 +1,105 @@
+{
+  "id": "concurrencia-mismo-horario",
+  "descripcion": "Dos pacientes piden el mismo horario a la vez: una cita, y el otro recibe horario_ocupado.",
+  "cubre": [
+    "concurrencia_mismo_horario",
+    "horario_ocupado"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.carrera.1",
+        "from": "+573000000026",
+        "text": "Agéndame dermatología el miércoles a las 3 pm en la Sede Norte, a nombre de Carla Mejía",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "grupo": "a",
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Dermatología",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T15:00"
+                  }
+                },
+                "nombre_paciente": "Carla Mejía"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Respuesta según el resultado."
+        }
+      ],
+      "espera": {
+        "estado_final": [
+          "cita_agendada",
+          "resuelta_por_ia"
+        ]
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.carrera.2",
+        "from": "+573000000027",
+        "text": "Agéndame dermatología el miércoles a las 3 pm en la Sede Norte, a nombre de David Rojas",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "grupo": "a",
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Dermatología",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T15:00"
+                  }
+                },
+                "nombre_paciente": "David Rojas"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Respuesta según el resultado."
+        }
+      ],
+      "espera": {
+        "estado_final": [
+          "cita_agendada",
+          "resuelta_por_ia"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1,
+    "conteo_estados": {
+      "cita_agendada": 1,
+      "resuelta_por_ia": 1
+    }
+  }
+}

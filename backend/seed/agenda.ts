@@ -39,7 +39,7 @@ export const PROFESIONALES: readonly PlantillaProfesional[] = [
       { sede: 'Sede Sur', dias: [2, 4], desde: '08:00', hasta: '12:00' },
     ] },
   { nombre: 'Dr. Julián Mora', especialidad: 'Dermatología',
-    franjas: [{ sede: 'Sede Sur', dias: [1, 3], desde: '14:00', hasta: '17:00' }] },
+    franjas: [{ sede: 'Sede Sur', dias: [2, 4], desde: '14:00', hasta: '17:00' }] },
   { nombre: 'Dra. Natalia Ospina', especialidad: 'Pediatría',
     franjas: [{ sede: 'Sede Norte', dias: LUN_A_VIE, desde: '08:00', hasta: '12:00' }] },
   { nombre: 'Dr. Felipe Cárdenas', especialidad: 'Pediatría',

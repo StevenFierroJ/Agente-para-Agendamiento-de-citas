@@ -1,0 +1,41 @@
+{
+  "id": "llm-error-proveedor",
+  "descripcion": "El proveedor responde error dos veces: mismo tratamiento que el timeout.",
+  "cubre": [
+    "llm_error_proveedor"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.error-proveedor.1",
+        "from": "+573000000018",
+        "text": "Hola, quiero una cita",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "falla",
+          "falla": "error_proveedor"
+        },
+        {
+          "tipo": "falla",
+          "falla": "error_proveedor"
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ]
+      }
+    }
+  ]
+}

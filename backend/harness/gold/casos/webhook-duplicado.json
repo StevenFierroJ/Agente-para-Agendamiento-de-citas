@@ -1,0 +1,44 @@
+{
+  "id": "webhook-duplicado",
+  "descripcion": "El mismo message_id llega dos veces: 202 y luego 200, un solo turno y una sola respuesta.",
+  "cubre": [
+    "mensaje_duplicado"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.duplicado.1",
+        "from": "+573000000022",
+        "text": "Hola",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202,
+        200
+      ],
+      "envios": 2,
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "Hola, ¿en qué te puedo ayudar?"
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "resuelta_por_ia"
+      },
+      "espera_real": {
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "turnos_total": 1,
+    "conversaciones_total": 1
+  }
+}

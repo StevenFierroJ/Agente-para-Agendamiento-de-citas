@@ -1,0 +1,59 @@
+{
+  "id": "herr-sede-inexistente",
+  "descripcion": "El paciente pide una sede que no existe; el error vuelve al modelo, que pregunta en lugar de elegir por él.",
+  "cubre": [
+    "sede_inexistente"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.sede.1",
+        "from": "+573000000004",
+        "text": "Quiero cita de medicina general en la sede Centro el miércoles",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Medicina general",
+                "sede": "Sede Centro",
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "No tenemos Sede Centro; atendemos en la Sede Norte y la Sede Sur. ¿Cuál te queda mejor?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "sede_inexistente"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      },
+      "espera_real": {
+        "estado_final": "resuelta_por_ia",
+        "herramientas_excluye": [
+          "agendar_cita"
+        ]
+      }
+    }
+  ]
+}

@@ -54,6 +54,34 @@ Con un corpus de decenas de fragmentos, el recorrido completo con distancia cose
 es exacto y barato. HNSW o IVFFlat se justificarían con miles de fragmentos por
 clínica.
 
+### D-08 · Validación del cuerpo del webhook
+- `timestamp` debe ser ISO 8601 **con zona** (`Z` u offset). Uno sin zona es
+  ambiguo (¿hora de Colombia o UTC?) y la invariante de la hora depende de él: se
+  rechaza con 400.
+- `text`: no vacío después de recortar espacios, máximo 4.096 caracteres (el
+  límite de un mensaje de texto de WhatsApp).
+- `from`: formato E.164 (`+` y de 8 a 15 dígitos).
+- Campos de más → 400. El webhook acepta exactamente lo que el enunciado define.
+
+### D-09 · Dos harness además de los tests
+Los tests de Vitest prueban piezas; no dicen si el sistema armado maneja cada
+excepción ni si las invariantes aguantan con carga. Se agregan:
+- un **goldset** de conversaciones guionadas que cubre cada situación con nombre
+  (cada código de error, fallas del LLM, duplicados, concurrencia, zona horaria),
+  ejecutable sin LLM (modo guion) y con el LLM real;
+- un **harness de volumen** que dispara mensajes concurrentes con duplicados y
+  contención por horario, y verifica las invariantes al final.
+El patrón viene del harness de evaluación de otro proyecto propio (guion
+declarado, transcript antes de puntuar, configuración junto a la medición). El
+costo: más código que mantener y casos escritos por quien construyó el sistema
+(`validado_por: null`), que prueban que el sistema hace lo que se decidió, no que
+lo decidido sea lo correcto.
+
+### D-10 · La agenda del seed tiene huecos a propósito
+Dermatología no atiende en la Sede Norte los martes y jueves, y la Sede Sur solo
+tiene dermatología en la tarde esos días. Así el ejemplo del enunciado ("mañana en
+la tarde", martes 6) tiene respuesta en una sede y `sin_horarios` en la otra.
+
 ## Secciones pendientes
 
 - Arquitectura general

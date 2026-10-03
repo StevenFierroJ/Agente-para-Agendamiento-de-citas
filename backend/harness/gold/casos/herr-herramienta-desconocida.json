@@ -1,0 +1,76 @@
+{
+  "id": "herr-herramienta-desconocida",
+  "descripcion": "El modelo pide una herramienta que no existe (cancelar_cita); recibe el error y escala.",
+  "cubre": [
+    "herramienta_desconocida",
+    "escalamiento_por_modelo"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.desconocida.1",
+        "from": "+573000000014",
+        "text": "Quiero cancelar mi cita del miércoles",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "cancelar_cita",
+              "argumentos": {
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "escalar_a_humano",
+              "argumentos": {
+                "motivo": "fuera_de_alcance"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Un asesor de la clínica te ayudará a cancelar tu cita."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "cancelar_cita",
+            "error": "herramienta_desconocida"
+          },
+          {
+            "nombre": "escalar_a_humano",
+            "error": null
+          }
+        ],
+        "estado_final": "escalada"
+      },
+      "espera_real": {
+        "estado_final": [
+          "escalada",
+          "resuelta_por_ia"
+        ],
+        "herramientas_excluye": [
+          "agendar_cita"
+        ]
+      }
+    }
+  ]
+}

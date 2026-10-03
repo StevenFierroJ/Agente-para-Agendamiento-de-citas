@@ -1,0 +1,70 @@
+{
+  "id": "zona-horaria-limite-del-dia",
+  "descripcion": "A las 22:40 del 5 en Cali (03:40 UTC del 6), el 5 es \"hoy\" y no \"pasado\": no hay horarios porque ya terminaron, no porque la fecha haya pasado. El 4 sí es pasado. Un error de UTC invertiría las dos respuestas.",
+  "cubre": [
+    "zona_horaria",
+    "fecha_pasada",
+    "sin_horarios"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.zona.1",
+        "from": "+573000000003",
+        "text": "¿Queda alguna cita de medicina general hoy en la Sede Norte?",
+        "timestamp": "2026-10-06T03:40:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Medicina general",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-05"
+              }
+            },
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Medicina general",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-04"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Hoy ya no quedan citas de medicina general en la Sede Norte."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "sin_horarios"
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "fecha_pasada"
+          }
+        ],
+        "estado_final": "resuelta_por_ia",
+        "prompt_contiene": [
+          "2026-10-05",
+          "22:40"
+        ]
+      }
+    }
+  ]
+}

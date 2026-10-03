@@ -1,0 +1,97 @@
+{
+  "id": "herr-horario-ocupado",
+  "descripcion": "Otro paciente ya tiene el horario: horario_ocupado, el modelo vuelve a consultar y ofrece otros.",
+  "cubre": [
+    "horario_ocupado",
+    "modelo_corrige_tras_error"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "preparacion": {
+    "citas": [
+      {
+        "telefono": "+573000000090",
+        "horario": {
+          "especialidad": "Medicina general",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-07T09:00"
+        },
+        "nombre_paciente": "Otra Paciente"
+      }
+    ]
+  },
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.ocupado.1",
+        "from": "+573000000009",
+        "text": "Agéndame medicina general el miércoles a las 9 en la Sede Norte, a nombre de Luis Herrera",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Medicina general",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T09:00"
+                  }
+                },
+                "nombre_paciente": "Luis Herrera"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Medicina general",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Las 9:00 ya está tomada. Tengo 9:30 y 10:00. ¿Te sirve alguna?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": "horario_ocupado"
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1,
+    "conversaciones": {
+      "+573000000009": {
+        "estado": "resuelta_por_ia",
+        "citas_activas": 0
+      }
+    }
+  }
+}

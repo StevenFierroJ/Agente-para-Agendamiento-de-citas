@@ -1,0 +1,79 @@
+{
+  "id": "herr-reintento-misma-conversacion",
+  "descripcion": "El horario ya es de esta misma conversación (un reintento del turno): agendar_cita devuelve éxito con esa cita, no duplica.",
+  "cubre": [
+    "reintento_misma_conversacion"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "preparacion": {
+    "citas": [
+      {
+        "telefono": "+573000000010",
+        "horario": {
+          "especialidad": "Medicina general",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-07T10:00"
+        },
+        "nombre_paciente": "Marta Silva"
+      }
+    ]
+  },
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.reintento.1",
+        "from": "+573000000010",
+        "text": "Confírmame la cita de medicina general del miércoles a las 10 en la Sede Norte, a nombre de Marta Silva",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Medicina general",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T10:00"
+                  }
+                },
+                "nombre_paciente": "Marta Silva"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Tu cita del miércoles 7 a las 10:00 a.m. en la Sede Norte está confirmada."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "estado_final": "cita_agendada"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1,
+    "conversaciones": {
+      "+573000000010": {
+        "estado": "cita_agendada",
+        "citas_activas": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "id": "herr-escalar-motivo-invalido",
+  "descripcion": "Motivo de escalamiento fuera de la lista cerrada; el modelo corrige con un motivo válido.",
+  "cubre": [
+    "argumentos_invalidos",
+    "escalamiento_por_modelo",
+    "modelo_corrige_tras_error"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.escalar.1",
+        "from": "+573000000015",
+        "text": "Quiero hablar con una persona, no con un robot",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "escalar_a_humano",
+              "argumentos": {
+                "motivo": "el paciente quiere una persona"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "escalar_a_humano",
+              "argumentos": {
+                "motivo": "solicitud_del_paciente"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Te comunico con un asesor de la clínica."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "escalar_a_humano",
+            "error": "argumentos_invalidos"
+          },
+          {
+            "nombre": "escalar_a_humano",
+            "error": null
+          }
+        ],
+        "estado_final": "escalada"
+      },
+      "espera_real": {
+        "estado_final": "escalada",
+        "herramientas_incluye": [
+          "escalar_a_humano"
+        ]
+      }
+    }
+  ]
+}

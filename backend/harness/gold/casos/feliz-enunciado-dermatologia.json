@@ -1,0 +1,150 @@
+{
+  "id": "feliz-enunciado-dermatologia",
+  "descripcion": "El mensaje del enunciado: llega 03:40 UTC del 6 (22:40 del 5 en Cali). \"Mañana\" es el 6. El martes en la tarde solo hay dermatología en la Sede Sur; el paciente elige y se agenda.",
+  "cubre": [
+    "cita_agendada",
+    "zona_horaria",
+    "sin_horarios"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.enunciado.1",
+        "from": "+573000000002",
+        "text": "Hola, ¿tienen cita con dermatología mañana en la tarde?",
+        "timestamp": "2026-10-06T03:40:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-06"
+              }
+            },
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Sur",
+                "fecha": "2026-10-06"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Mañana martes 6 hay dermatología en la tarde solo en la Sede Sur: 2:00, 2:30, 3:00 p.m. ¿Cuál prefieres y a nombre de quién?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "sin_horarios"
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia",
+        "prompt_contiene": [
+          "2026-10-05",
+          "Sede Norte",
+          "Sede Sur",
+          "Dermatología"
+        ]
+      },
+      "espera_real": {
+        "estado_final": "resuelta_por_ia",
+        "herramientas_incluye": [
+          "consultar_disponibilidad"
+        ],
+        "herramientas_excluye": [
+          "agendar_cita"
+        ],
+        "herramientas_con_argumentos": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "argumentos": {
+              "fecha": "2026-10-06",
+              "especialidad": "Dermatología"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.enunciado.2",
+        "from": "+573000000002",
+        "text": "La de las 2 de la tarde en la Sede Sur, a nombre de Ana María Pérez",
+        "timestamp": "2026-10-06T03:42:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Dermatología",
+                    "sede": "Sede Sur",
+                    "inicio": "2026-10-06T14:00"
+                  }
+                },
+                "nombre_paciente": "Ana María Pérez"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo, Ana María: tu cita de dermatología es mañana martes 6 a las 2:00 p.m. en la Sede Sur."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "estado_final": "cita_agendada"
+      },
+      "espera_real": {
+        "estado_final": "cita_agendada",
+        "herramientas_incluye": [
+          "agendar_cita"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000002": {
+        "estado": "cita_agendada",
+        "citas_activas": 1
+      }
+    },
+    "citas_activas_total": 1
+  }
+}

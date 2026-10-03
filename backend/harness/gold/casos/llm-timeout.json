@@ -1,0 +1,50 @@
+{
+  "id": "llm-timeout",
+  "descripcion": "El proveedor tarda más del límite dos veces (llamada + reintento): mensaje fijo, conversación escalada, turno guardado con el error.",
+  "cubre": [
+    "llm_timeout"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.timeout.1",
+        "from": "+573000000017",
+        "text": "Hola, quiero una cita",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "falla",
+          "falla": "timeout"
+        },
+        {
+          "tipo": "falla",
+          "falla": "timeout"
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000017": {
+        "estado": "escalada",
+        "citas_activas": 0
+      }
+    },
+    "turnos_total": 1
+  }
+}

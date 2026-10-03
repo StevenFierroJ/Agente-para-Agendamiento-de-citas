@@ -46,6 +46,9 @@ backend/
   migraciones/
   seed/
     documentos/       6 a 10 archivos .md de la clínica
+  harness/
+    gold/casos/       goldset: una conversación guionada por archivo
+    carga/            harness de volumen
   tests/
 frontend/
 docs/
@@ -56,6 +59,8 @@ README.md
 ```
 
 `dominio/` no importa nada de `infraestructura/`. `aplicacion/` depende de interfaces, no de SDK.
+
+La API y el trabajador se arman con funciones fábrica (`crearApi(deps)`, `crearTrabajador(deps)`) que reciben `LlmClient` y `EmbeddingClient`: el harness los levanta en proceso con un LLM falso guionado por `message_id`. `api.ts` y `trabajador.ts` solo leen el entorno y llaman a la fábrica.
 
 ## Modelo de datos
 
@@ -177,18 +182,24 @@ SEED_DESDE=
 
 `.env.example` en el repositorio; `.env` en `.gitignore`. Ninguna llave en el código ni en el historial de Git. `LLM_MODEL` se elige al inicio consultando la lista vigente de modelos de Gemini; no fijarlo de memoria.
 
+## Harness (ver `backend/harness/README.md`)
+
+- **Goldset** (`harness/gold/`): 25 conversaciones guionadas que cubren cada situación de `harness/excepciones.ts` (cada código de error del dominio, fallas del LLM, duplicados, concurrencia, zona horaria). Modo `guion` (LLM falso, no gasta) y modo `real`. Un test de Vitest falla si una situación queda sin caso.
+- **Volumen** (`harness/carga/`): mensajes generados con semilla, duplicados, contención por el mismo horario, latencia del LLM simulada y caos opcional (fallas del LLM, MongoDB en pausa). Verifica las invariantes y mide latencias y vaciado de la cola.
+- Patrón tomado del harness de Morton: el guion declara su paso, el transcript se guarda antes de puntuar, la configuración viaja con la medición, un precio desconocido es vacío y no cero.
+
 ## Orden de construcción
 
 1. `docker-compose.yml` (PostgreSQL con pgvector, MongoDB), migraciones, seed.
 2. Dominio: fechas en hora de Colombia y reglas de agenda, con tests.
-3. Webhook, idempotencia, cola y trabajador con `LlmClient` falso.
-4. Herramientas con validación; test de concurrencia de citas.
-5. Ciclo del LLM, trazas en MongoDB, manejo de falla.
-6. RAG: indexación en el seed, búsqueda, umbral.
+3. Webhook, idempotencia, cola y trabajador con `LlmClient` falso. Runner del goldset; casos `webhook-*`, `conv-escalada` y `serie-*` en verde.
+4. Herramientas con validación; test de concurrencia de citas. Casos `herr-*`, `zona-*`, `feliz-enunciado-*` y `concurrencia-*` en verde.
+5. Ciclo del LLM, trazas en MongoDB, manejo de falla. Casos `llm-*` en verde; harness de volumen sin violaciones.
+6. RAG: indexación en el seed, búsqueda, umbral. Casos `rag-*` y `feliz-pregunta-*` en verde; goldset completo en modo `guion`, y una corrida en modo `real` registrada.
 7. API de lectura y frontend.
 8. `README.md`, diagrama de AWS en Mermaid, `DECISIONS.md`.
 
-Cada paso termina con sus tests en verde antes de pasar al siguiente.
+Cada paso termina con sus tests y sus casos del goldset en verde antes de pasar al siguiente. Un commit por paso.
 
 ## Reglas de trabajo
 

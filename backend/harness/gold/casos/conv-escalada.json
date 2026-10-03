@@ -1,0 +1,47 @@
+{
+  "id": "conv-escalada",
+  "descripcion": "La conversación ya está escalada: no se llama al LLM y se responde un mensaje fijo.",
+  "cubre": [
+    "conversacion_escalada"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "preparacion": {
+    "escaladas": [
+      "+573000000021"
+    ]
+  },
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.escalada.1",
+        "from": "+573000000021",
+        "text": "¿Siguen ahí?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "espera": {
+        "llamo_llm": false,
+        "herramientas": [],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ]
+      },
+      "espera_real": {
+        "estado_final": "escalada",
+        "herramientas_excluye": [
+          "buscar_conocimiento",
+          "consultar_disponibilidad",
+          "agendar_cita",
+          "escalar_a_humano"
+        ]
+      }
+    }
+  ]
+}

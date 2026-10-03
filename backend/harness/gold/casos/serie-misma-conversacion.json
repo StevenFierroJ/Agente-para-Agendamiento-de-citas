@@ -1,0 +1,61 @@
+{
+  "id": "serie-misma-conversacion",
+  "descripcion": "Dos mensajes del mismo teléfono llegan a la vez: se procesan uno tras otro y en el orden en que se enviaron.",
+  "cubre": [
+    "serie_por_conversacion"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.serie.1",
+        "from": "+573000000024",
+        "text": "Hola",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "grupo": "a",
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "Hola, ¿en qué te ayudo?"
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "resuelta_por_ia"
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.serie.2",
+        "from": "+573000000024",
+        "text": "¿Atienden los sábados?",
+        "timestamp": "2026-10-05T14:00:05Z"
+      },
+      "http": [
+        202
+      ],
+      "grupo": "a",
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "No, atendemos de lunes a viernes."
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "turnos_total": 2,
+    "turnos_en_serie": true
+  }
+}

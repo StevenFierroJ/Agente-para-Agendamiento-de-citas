@@ -1,0 +1,68 @@
+{
+  "id": "feliz-pregunta-documentos",
+  "descripcion": "Pregunta que está en los documentos: responde con buscar_conocimiento y no agenda nada.",
+  "cubre": [
+    "respuesta_con_documentos"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.feliz-doc.1",
+        "from": "+573000000001",
+        "text": "¿Cuál es el horario de atención de la Sede Norte?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "buscar_conocimiento",
+              "argumentos": {
+                "pregunta": "horario de atención de la Sede Norte"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "La Sede Norte atiende de lunes a viernes de 7:00 a.m. a 6:00 p.m."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "buscar_conocimiento",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      },
+      "espera_real": {
+        "estado_final": "resuelta_por_ia",
+        "herramientas_incluye": [
+          "buscar_conocimiento"
+        ],
+        "herramientas_excluye": [
+          "agendar_cita"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000001": {
+        "estado": "resuelta_por_ia",
+        "citas_activas": 0
+      }
+    }
+  }
+}

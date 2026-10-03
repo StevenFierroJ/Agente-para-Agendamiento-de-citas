@@ -31,9 +31,9 @@ describe('generarBloques', () => {
 
   it('no deja un bloque cortado al final de la franja', () => {
     const mora = bloques.filter((b) => b.profesional === 'Dr. Julián Mora');
-    const ultimoDelLunes = mora.filter((b) => b.inicio.toISOString().startsWith('2026-10-05')).at(-1);
+    const ultimoDelMartes = mora.filter((b) => b.inicio.toISOString().startsWith('2026-10-06')).at(-1);
     // Franja 14:00–17:00: el último bloque es 16:30–17:00 (22:00 UTC).
-    expect(ultimoDelLunes?.fin.toISOString()).toBe('2026-10-05T22:00:00.000Z');
+    expect(ultimoDelMartes?.fin.toISOString()).toBe('2026-10-06T22:00:00.000Z');
   });
 });
 

@@ -1,0 +1,81 @@
+{
+  "id": "rag-sin-resultados",
+  "descripcion": "Pregunta que no está en los documentos: buscar_conocimiento devuelve sin_resultados y el asistente escala sin inventar.",
+  "cubre": [
+    "sin_resultados",
+    "escalamiento_por_modelo"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.rag-sin.1",
+        "from": "+573000000016",
+        "text": "¿Cuánto cuesta un trasplante de corazón en la clínica?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "buscar_conocimiento",
+              "argumentos": {
+                "pregunta": "precio de un trasplante de corazón"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "escalar_a_humano",
+              "argumentos": {
+                "motivo": "sin_informacion"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "No tengo esa información. Un asesor de la clínica te responderá."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "buscar_conocimiento",
+            "error": "sin_resultados"
+          },
+          {
+            "nombre": "escalar_a_humano",
+            "error": null
+          }
+        ],
+        "estado_final": "escalada"
+      },
+      "espera_real": {
+        "estado_final": [
+          "escalada",
+          "resuelta_por_ia"
+        ],
+        "herramientas_incluye": [
+          "buscar_conocimiento"
+        ],
+        "respuesta_no_contiene": [
+          "$",
+          "pesos",
+          "COP"
+        ]
+      }
+    }
+  ]
+}

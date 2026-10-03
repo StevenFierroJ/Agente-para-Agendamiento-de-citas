@@ -17,3 +17,11 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   cómo se garantiza el orden. Ver D-03.
 - **Seed atado a la fecha de ejecución.** El ejemplo del enunciado deja de tener
   horarios si se evalúa en otra fecha. Ver D-04.
+
+## Paso 1 y harness
+
+- **El ejemplo del enunciado no tenía respuesta en el seed.** La primera plantilla
+  de horarios ponía al segundo dermatólogo lunes y miércoles; el martes 6 en la
+  tarde ("mañana en la tarde" del ejemplo) no había dermatología en ninguna sede.
+  Lo detectó el armado del goldset, al escribir el caso del enunciado contra la
+  agenda real. Se movió a martes y jueves (D-10).

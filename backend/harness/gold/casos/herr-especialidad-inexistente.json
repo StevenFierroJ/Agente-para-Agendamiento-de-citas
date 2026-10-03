@@ -1,0 +1,62 @@
+{
+  "id": "herr-especialidad-inexistente",
+  "descripcion": "Especialidad que la clínica no ofrece.",
+  "cubre": [
+    "especialidad_inexistente"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.especialidad.1",
+        "from": "+573000000005",
+        "text": "¿Tienen cardiología en la Sede Sur el martes?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Cardiología",
+                "sede": "Sede Sur",
+                "fecha": "2026-10-06"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "No ofrecemos cardiología. Tenemos medicina general, dermatología y pediatría."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "especialidad_inexistente"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      },
+      "espera_real": {
+        "estado_final": [
+          "resuelta_por_ia",
+          "escalada"
+        ],
+        "herramientas_excluye": [
+          "agendar_cita"
+        ]
+      }
+    }
+  ]
+}

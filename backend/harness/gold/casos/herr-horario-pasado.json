@@ -1,0 +1,60 @@
+{
+  "id": "herr-horario-pasado",
+  "descripcion": "Miércoles 15:00 en Cali: el bloque de las 8:00 de ese día ya pasó.",
+  "cubre": [
+    "horario_pasado"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.horario-pasado.1",
+        "from": "+573000000008",
+        "text": "Quiero la cita de pediatría de hoy a las 8 en la Sede Norte, a nombre de Sofía Ríos",
+        "timestamp": "2026-10-07T20:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Pediatría",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T08:00"
+                  }
+                },
+                "nombre_paciente": "Sofía Ríos"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Ese horario ya pasó. ¿Te busco uno para mañana?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": "horario_pasado"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 0
+  }
+}

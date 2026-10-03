@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src", "seed", "tests", "vitest.config.ts"]
+  "include": ["src", "seed", "harness", "tests", "vitest.config.ts"]
 }

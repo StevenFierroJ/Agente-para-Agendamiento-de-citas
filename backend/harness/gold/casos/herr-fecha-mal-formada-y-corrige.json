@@ -1,0 +1,70 @@
+{
+  "id": "herr-fecha-mal-formada-y-corrige",
+  "descripcion": "El modelo manda la fecha como DD/MM/AAAA; el esquema la rechaza y en la iteración siguiente la manda bien.",
+  "cubre": [
+    "argumentos_invalidos",
+    "modelo_corrige_tras_error"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.fecha-formato.1",
+        "from": "+573000000006",
+        "text": "Necesito pediatría en la Sede Norte el miércoles 7",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "07/10/2026"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "El miércoles 7 en la Sede Norte hay pediatría desde las 8:00 a.m. ¿Qué hora prefieres?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "argumentos_invalidos"
+          },
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ]
+}

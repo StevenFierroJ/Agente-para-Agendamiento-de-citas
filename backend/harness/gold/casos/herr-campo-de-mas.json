@@ -1,0 +1,83 @@
+{
+  "id": "herr-campo-de-mas",
+  "descripcion": "El modelo agrega un campo de texto libre (motivo de consulta) a agendar_cita: el esquema estricto lo rechaza.",
+  "cubre": [
+    "argumentos_invalidos"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.campo-de-mas.1",
+        "from": "+573000000012",
+        "text": "Agéndame pediatría el jueves a las 8 en la Sede Norte para Tomás Vega, tiene fiebre",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Pediatría",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-08T08:00"
+                  }
+                },
+                "nombre_paciente": "Tomás Vega",
+                "motivo": "fiebre"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Pediatría",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-08T08:00"
+                  }
+                },
+                "nombre_paciente": "Tomás Vega"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo: pediatría el jueves 8 a las 8:00 a.m. en la Sede Norte para Tomás Vega."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": "argumentos_invalidos"
+          },
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "estado_final": "cita_agendada"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1
+  }
+}

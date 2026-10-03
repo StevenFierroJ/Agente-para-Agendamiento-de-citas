@@ -1,0 +1,54 @@
+{
+  "id": "herr-horario-inexistente",
+  "descripcion": "El modelo inventa un horario_id.",
+  "cubre": [
+    "horario_inexistente"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.horario-inexistente.1",
+        "from": "+573000000007",
+        "text": "Agéndame en el primer horario que tengan, a nombre de Pedro Gómez",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": 999999,
+                "nombre_paciente": "Pedro Gómez"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "¿Con qué especialidad y en qué sede quieres la cita?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": "horario_inexistente"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 0
+  }
+}

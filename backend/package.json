@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "migrar": "tsx --env-file-if-exists=../.env src/infraestructura/postgres/migrar.ts",
     "seed": "tsx --env-file-if-exists=../.env seed/seed.ts",
@@ -12,7 +14,8 @@
   },
   "dependencies": {
     "luxon": "^3.7.2",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.6",

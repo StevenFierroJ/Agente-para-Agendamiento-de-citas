@@ -1,0 +1,41 @@
+{
+  "id": "llm-reintento-exitoso",
+  "descripcion": "Falla la primera llamada y el reintento responde: el paciente no nota nada.",
+  "cubre": [
+    "llm_reintento_exitoso"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.reintento-llm.1",
+        "from": "+573000000019",
+        "text": "Hola",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "falla",
+          "falla": "timeout"
+        },
+        {
+          "tipo": "texto",
+          "texto": "Hola, ¿en qué te puedo ayudar?"
+        }
+      ],
+      "espera": {
+        "herramientas": [],
+        "estado_final": "resuelta_por_ia",
+        "respuesta_no_contiene": [
+          "asesor"
+        ]
+      }
+    }
+  ]
+}

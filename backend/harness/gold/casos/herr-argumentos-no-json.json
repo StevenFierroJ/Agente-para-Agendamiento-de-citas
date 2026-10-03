@@ -1,0 +1,48 @@
+{
+  "id": "herr-argumentos-no-json",
+  "descripcion": "Los argumentos llegan como JSON mal formado.",
+  "cubre": [
+    "argumentos_invalidos"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.no-json.1",
+        "from": "+573000000013",
+        "text": "¿Hay pediatría el viernes en la Sede Sur?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos_crudos": "{\"especialidad\": \"Pediatría\", \"sede\": "
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "¿Me repites qué día y en qué sede?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": "argumentos_invalidos"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ]
+}

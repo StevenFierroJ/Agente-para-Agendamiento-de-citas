@@ -7,3 +7,4 @@ dist/
 
 # Enunciado interno de WeKall: se usa localmente, no se publica en el repositorio
 docs/enunciado.pdf
+backend/harness/out/

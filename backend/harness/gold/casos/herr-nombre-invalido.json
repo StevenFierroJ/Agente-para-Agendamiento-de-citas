@@ -1,0 +1,60 @@
+{
+  "id": "herr-nombre-invalido",
+  "descripcion": "Nombre con dígitos: se rechaza y el modelo pide el nombre en lugar de agendar.",
+  "cubre": [
+    "nombre_invalido"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.nombre.1",
+        "from": "+573000000011",
+        "text": "Agéndame medicina general el miércoles a las 11 en la Sede Norte, a nombre de Juan 123",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "horario_id": {
+                  "$horario": {
+                    "especialidad": "Medicina general",
+                    "sede": "Sede Norte",
+                    "inicio": "2026-10-07T11:00"
+                  }
+                },
+                "nombre_paciente": "Juan 123"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "¿Me confirmas el nombre completo del paciente?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": "nombre_invalido"
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 0
+  }
+}

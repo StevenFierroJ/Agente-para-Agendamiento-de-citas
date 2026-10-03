@@ -5,7 +5,10 @@ import type { Herramienta, LlmClient } from './aplicacion/puertos.js';
 import { iniciarTrabajador, type Trabajador } from './aplicacion/trabajador.js';
 import { crearApi } from './http/api.js';
 import { iniciarCola, type OpcionesCola } from './infraestructura/cola/cola.js';
-import { conectarMongo, type Mongo } from './infraestructura/mongo/mongo.js';
+import { AlmacenMongo, conectarMongo, type Mongo } from './infraestructura/mongo/mongo.js';
+import { AgendaPostgres } from './infraestructura/postgres/agenda.js';
+import { RepositorioMensajesPostgres } from './infraestructura/postgres/mensajes.js';
+import type { Agenda, RepositorioMensajes } from './aplicacion/puertos.js';
 import type { Registro } from './infraestructura/registro.js';
 
 export interface OpcionesSistema {
@@ -15,8 +18,8 @@ export interface OpcionesSistema {
   /** Si se pasa, se levanta el trabajador con este LLM. */
   trabajador?: {
     llm: LlmClient;
-    /** Recibe el pool del sistema: las herramientas consultan la misma base. */
-    crearHerramientas: (pool: pg.Pool) => ReadonlyMap<string, Herramienta>;
+    /** Recibe la agenda del sistema: las herramientas consultan la misma base. */
+    crearHerramientas: (dependencias: { agenda: Agenda; mensajes: RepositorioMensajes; pool: pg.Pool }) => ReadonlyMap<string, Herramienta>;
     timeoutMs: number;
     maxIteraciones: number;
     precios: { entrada: number; salida: number } | null;
@@ -50,12 +53,12 @@ export async function levantarSistema(opciones: OpcionesSistema): Promise<Sistem
         boss,
         {
           llm: opciones.trabajador.llm,
-          herramientas: opciones.trabajador.crearHerramientas(pool),
+          herramientas: opciones.trabajador.crearHerramientas({ agenda: new AgendaPostgres(pool), mensajes: new RepositorioMensajesPostgres(pool), pool }),
           timeoutMs: opciones.trabajador.timeoutMs,
           maxIteraciones: opciones.trabajador.maxIteraciones,
           precios: opciones.trabajador.precios,
-          pool,
-          mongo,
+          mensajes: new RepositorioMensajesPostgres(pool),
+          almacen: new AlmacenMongo(mongo),
           registro: opciones.registro,
         },
         { ...cola, concurrencia: opciones.trabajador.concurrencia },

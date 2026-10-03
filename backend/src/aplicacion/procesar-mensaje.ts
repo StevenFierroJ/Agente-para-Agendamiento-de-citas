@@ -1,21 +1,16 @@
-import type pg from 'pg';
 import { siguienteEstadoConversacion } from '../dominio/estados.js';
 import { ahoraDelMensaje, contextoTemporal } from '../dominio/fechas.js';
-import { guardarMensaje, guardarTurno, leerHistorial, type Mongo } from '../infraestructura/mongo/mongo.js';
-import {
-  actualizarEstadoConversacion, leerCatalogo, marcarMensaje, obtenerMensaje, type MensajeAProcesar,
-} from '../infraestructura/postgres/mensajes.js';
 import { describirError, enmascararTelefono, type Registro } from '../infraestructura/registro.js';
 import { MENSAJE_FALLA_TECNICA } from './mensajes-fijos.js';
 import { ejecutarTurno, type DependenciasOrquestador } from './orquestador.js';
 import { construirPromptSistema } from './prompt.js';
-import type { MensajeLlm } from './puertos.js';
+import type { AlmacenConversaciones, MensajeAProcesar, MensajeLlm, RepositorioMensajes } from './puertos.js';
 
 export const LIMITE_HISTORIAL = 20;
 
 export interface DependenciasProcesamiento extends DependenciasOrquestador {
-  pool: pg.Pool;
-  mongo: Mongo;
+  mensajes: RepositorioMensajes;
+  almacen: AlmacenConversaciones;
   precios: { entrada: number; salida: number } | null;
   registro: Registro;
 }
@@ -30,14 +25,14 @@ export interface DependenciasProcesamiento extends DependenciasOrquestador {
  * sobrescribe en MongoDB y no duplica la cita (invariante 4).
  */
 export async function procesarMensaje(messageId: string, deps: DependenciasProcesamiento): Promise<void> {
-  const mensaje = await obtenerMensaje(deps.pool, messageId);
+  const mensaje = await deps.mensajes.obtener(messageId);
   if (!mensaje) throw new Error(`El trabajo apunta a un mensaje que no existe: ${messageId}`);
   if (mensaje.estado === 'procesado' || mensaje.estado === 'fallido') return;
 
   const iniciadoEn = new Date();
-  await marcarMensaje(deps.pool, messageId, 'procesando');
-  await guardarMensaje(deps.mongo, {
-    _id: `${messageId}:entrada`,
+  await deps.mensajes.marcar(messageId, 'procesando');
+  await deps.almacen.guardarMensaje({
+    id: `${messageId}:entrada`,
     conversacion_id: mensaje.conversacionId,
     message_id: messageId,
     rol: 'paciente',
@@ -49,8 +44,8 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
 
   const ahora = ahoraDelMensaje(mensaje.enviadoEn);
   const [historial, catalogo] = await Promise.all([
-    leerHistorial(deps.mongo, mensaje.conversacionId, LIMITE_HISTORIAL),
-    leerCatalogo(deps.pool),
+    deps.almacen.historial(mensaje.conversacionId, LIMITE_HISTORIAL),
+    deps.mensajes.catalogo(),
   ]);
   const turno = await ejecutarTurno(
     {
@@ -58,7 +53,11 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
       conversacionId: mensaje.conversacionId,
       estadoConversacion: mensaje.estadoConversacion,
       ahora,
-      promptSistema: construirPromptSistema({ tiempo: contextoTemporal(ahora), ...catalogo }),
+      promptSistema: construirPromptSistema({
+        tiempo: contextoTemporal(ahora),
+        sedes: catalogo.sedes.map((s) => s.nombre),
+        especialidades: catalogo.especialidades.map((e) => e.nombre),
+      }),
       historial: historial.map(
         (m): MensajeLlm => (m.rol === 'paciente' ? { rol: 'paciente', contenido: m.texto } : { rol: 'asistente', contenido: m.texto }),
       ),
@@ -66,15 +65,14 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     deps,
   );
 
-  await actualizarEstadoConversacion(
-    deps.pool,
+  await deps.mensajes.actualizarEstadoConversacion(
     mensaje.conversacionId,
     siguienteEstadoConversacion(mensaje.estadoConversacion, turno.estadoFinal),
   );
 
   const terminadoEn = new Date();
-  await guardarMensaje(deps.mongo, {
-    _id: `${messageId}:salida`,
+  await deps.almacen.guardarMensaje({
+    id: `${messageId}:salida`,
     conversacion_id: mensaje.conversacionId,
     message_id: messageId,
     rol: 'asistente',
@@ -83,8 +81,8 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     orden: 1,
     guardado_en: terminadoEn,
   });
-  await guardarTurno(deps.mongo, {
-    _id: messageId,
+  await deps.almacen.guardarTurno({
+    id: messageId,
     conversacion_id: mensaje.conversacionId,
     fecha: mensaje.enviadoEn,
     iniciado_en: iniciadoEn,
@@ -101,7 +99,7 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     error: turno.error,
   });
 
-  await marcarMensaje(deps.pool, messageId, 'procesado');
+  await deps.mensajes.marcar(messageId, 'procesado');
   deps.registro.info('turno procesado', {
     message_id: messageId,
     telefono: enmascararTelefono(mensaje.telefono),
@@ -133,16 +131,16 @@ export async function abandonarMensaje(messageId: string, causa: unknown, deps: 
   deps.registro.error('mensaje abandonado tras el último intento', { message_id: messageId, error: describirError(causa) });
   let mensaje: MensajeAProcesar | null = null;
   try {
-    mensaje = await obtenerMensaje(deps.pool, messageId);
-    await marcarMensaje(deps.pool, messageId, 'fallido');
-    if (mensaje) await actualizarEstadoConversacion(deps.pool, mensaje.conversacionId, 'escalada');
+    mensaje = await deps.mensajes.obtener(messageId);
+    await deps.mensajes.marcar(messageId, 'fallido');
+    if (mensaje) await deps.mensajes.actualizarEstadoConversacion(mensaje.conversacionId, 'escalada');
   } catch (error) {
     deps.registro.error('no se pudo marcar el mensaje como fallido', { message_id: messageId, error: describirError(error) });
   }
   if (!mensaje) return;
   try {
-    await guardarMensaje(deps.mongo, {
-      _id: `${messageId}:salida`,
+    await deps.almacen.guardarMensaje({
+      id: `${messageId}:salida`,
       conversacion_id: mensaje.conversacionId,
       message_id: messageId,
       rol: 'asistente',

@@ -145,6 +145,39 @@ a consultar disponibilidad. Así además confirma que el horario sigue libre.
 - **500**: si falla el encolado, la transacción se revierte y no queda nada. El
   proveedor reintenta y el mensaje entra como nuevo.
 
+### D-18 · Las herramientas: validación y forma de los errores
+- **Una sola fuente.** El esquema zod que valida los argumentos genera también
+  el JSON Schema que ve el modelo (`z.toJSONSchema`). No pueden desalinearse.
+- **Orden de validación** en `consultar_disponibilidad`:
+  1. esquema (campos, tipos, campos de más);
+  2. formato de la fecha;
+  3. especialidad;
+  4. sede;
+  5. fecha pasada;
+  6. horarios libres.
+
+  Ante varios errores, el modelo recibe primero el que exige preguntarle algo al
+  paciente.
+- **El error dice cómo corregir.** `especialidad_inexistente` y
+  `sede_inexistente` traen la lista de nombres válidos; `horario_ocupado` pide
+  volver a consultar.
+- **`consultar_disponibilidad` devuelve el día completo.** No filtra por mañana
+  o tarde: con a lo sumo ~20 bloques por especialidad y sede, el modelo elige
+  la franja. Agregar un parámetro de franja sumaría otro argumento que el modelo
+  puede mandar mal.
+- **`escalar_a_humano` no escribe en la base.** El estado `escalada` lo fija el
+  código al cerrar el turno, igual que los demás estados (estadoFinalDelTurno).
+
+### D-19 · Cita duplicada: lectura previa más índice único
+`agendar_cita` lee el horario y la cita activa, decide con la regla del dominio
+e inserta, todo en una transacción. La lectura previa resuelve el caso común con
+un mensaje claro. La garantía es el índice único parcial: si otro paciente
+inserta entre la lectura y la inserción, el `INSERT` recibe `23505`, se vuelve
+a un savepoint, se relee la cita ganadora y se devuelve `horario_ocupado` (o
+éxito, si la ganadora es de la misma conversación). No se usa `SELECT … FOR
+UPDATE` sobre el horario: el índice ya serializa, y un bloqueo explícito
+agregaría esperas sin cambiar el resultado.
+
 ## Secciones pendientes
 
 - Arquitectura general

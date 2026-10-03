@@ -1,13 +1,15 @@
-import type pg from 'pg';
-import type { EmbeddingClient, Herramienta } from '../puertos.js';
+import type { Agenda, Herramienta, RepositorioMensajes } from '../puertos.js';
+import { crearAgendarCita } from './agendar-cita.js';
+import { crearConsultarDisponibilidad } from './consultar-disponibilidad.js';
+import { crearEscalarAHumano } from './escalar-a-humano.js';
 
 export interface DependenciasHerramientas {
-  pool: pg.Pool;
-  embeddings: EmbeddingClient | null;
-  ragUmbral: number | null;
+  agenda: Agenda;
+  catalogo: Pick<RepositorioMensajes, 'catalogo'>;
 }
 
-/** Las herramientas que el modelo puede pedir, por nombre. Se completan en el paso 4. */
-export function crearHerramientas(_deps: DependenciasHerramientas): Map<string, Herramienta> {
-  return new Map();
+/** Las herramientas que el modelo puede pedir, por nombre. `buscar_conocimiento` llega con el RAG (paso 6). */
+export function crearHerramientas(deps: DependenciasHerramientas): Map<string, Herramienta> {
+  const herramientas = [crearConsultarDisponibilidad(deps.agenda, deps.catalogo), crearAgendarCita(deps.agenda), crearEscalarAHumano()];
+  return new Map(herramientas.map((h) => [h.definicion.nombre, h]));
 }

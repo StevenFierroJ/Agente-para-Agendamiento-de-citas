@@ -78,7 +78,7 @@ async function main(): Promise<number> {
     cola: { reintentos: 3 },
     trabajador: {
       llm,
-      crearHerramientas: (pool) => crearHerramientas({ pool, embeddings: null, ragUmbral: config.RAG_UMBRAL ?? null }),
+      crearHerramientas: ({ agenda, mensajes }) => crearHerramientas({ agenda, catalogo: mensajes }),
       timeoutMs: modo === 'guion' ? 2_000 : config.LLM_TIMEOUT_MS,
       maxIteraciones: config.LLM_MAX_ITERACIONES,
       precios: preciosLlm(config),

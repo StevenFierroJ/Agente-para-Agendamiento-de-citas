@@ -38,3 +38,19 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
 - **Expectativa equivocada en un test.** La IA supuso que Fastify responde 415 a
   un cuerpo `text/plain`; en realidad lo acepta, y zod lo rechaza con 400. Se
   corrigió el test, no el código: el 400 con detalle es la respuesta correcta.
+
+## Paso 4
+
+- **`aplicacion/` importaba infraestructura.** En el paso 3 la IA escribió
+  `procesar-mensaje.ts` llamando directamente funciones de PostgreSQL y MongoDB,
+  contra la regla del CLAUDE.md. Se detectó al diseñar las herramientas y se
+  corrigió con puertos (`RepositorioMensajes`, `AlmacenConversaciones`, `Agenda`)
+  e implementaciones en `infraestructura/`.
+- **Una medición falsa casi lleva a una conclusión equivocada.** Para verificar
+  que el test concurrente ejercía el índice único, la IA instrumentó el código
+  con `sed`, que no aplicó el cambio (caracteres no ASCII en el patrón), y
+  concluyó que el camino `23505` nunca se tomaba. Se reescribió el test como uno
+  determinista: otra transacción inserta sin confirmar y la herramienta queda
+  bloqueada en el índice. Al repetir la medición con una inserción confiable,
+  ese camino se toma 28 veces en los tests concurrentes. Quedaron los dos tests.
+  Lección: verificar que la instrumentación se aplicó antes de leer su resultado.

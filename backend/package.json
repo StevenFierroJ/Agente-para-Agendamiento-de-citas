@@ -13,7 +13,8 @@
     "test": "vitest run",
     "harness:gold": "tsx --env-file-if-exists=../.env harness/gold/correr.ts",
     "api": "tsx --env-file-if-exists=../.env src/api.ts",
-    "trabajador": "tsx --env-file-if-exists=../.env src/trabajador.ts"
+    "trabajador": "tsx --env-file-if-exists=../.env src/trabajador.ts",
+    "harness:carga": "tsx --env-file-if-exists=../.env harness/carga/correr.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

@@ -8,7 +8,7 @@ sistema armado.
 | | Goldset (`gold/`) | Volumen (`carga/`) |
 |---|---|---|
 | Pregunta | ¿cada excepción se maneja como se decidió? | ¿las invariantes aguantan con concurrencia y duplicados? |
-| Entrada | 25 conversaciones guionadas, una por archivo | mensajes generados con semilla |
+| Entrada | 26 conversaciones (25 guionadas y 1 solo para el modelo real) | mensajes generados con semilla |
 | LLM | falso guionado (`guion`) o real (`real`) | falso, con latencia simulada |
 | Falla si | un turno o el estado final no coincide | se viola cualquier invariante |
 
@@ -108,6 +108,17 @@ npm run harness:carga -- --mensajes 2000 --telefonos 300 --concurrencia 50 \
 promedio; con un pico de 10× en horario de oficina, ~2–3 por segundo. La corrida
 por defecto (2.000 mensajes con 50 simultáneos) está muy por encima de ese pico:
 mide holgura, no el caso medio.
+
+### Qué se midió (2026-10-03)
+
+| Corrida | Resultado |
+|---|---|
+| 2.000 mensajes, 300 teléfonos, 10 % duplicados, 20 grupos en disputa, caos LLM 5 % | sin violaciones; webhook p95 57 ms; 15,9 turnos/s |
+| 300 mensajes, MongoDB en pausa 25 s (antes de D-22) | 4 violaciones: grupos en disputa sin la traza de `agendar_cita` |
+| la misma, después de D-22 | sin violaciones; 8 trabajos reintentados |
+| 300 mensajes, MongoDB en pausa 60 s | sin violaciones; 38 trabajos reintentados, hasta el último intento |
+
+El histórico completo está en `carga/METRICAS_CARGA.csv`.
 
 ### Salidas
 

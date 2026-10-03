@@ -121,6 +121,42 @@ describe('trabajador', () => {
   });
 });
 
+describe('trabajador: reintento de un turno', () => {
+  let sistema: Sistema;
+  let llm: LlmGuionado;
+
+  beforeAll(async () => {
+    await prepararBasesDeTest();
+    llm = new LlmGuionado();
+    ({ sistema } = await levantarSistemaDeTest({ llm, reintentos: 2 }));
+  });
+  afterAll(async () => {
+    await sistema.detener();
+  });
+
+  it('el historial del reintento no incluye la respuesta del intento fallido', async () => {
+    // Primer intento: responde y guarda la salida, pero falla al guardar el turno.
+    const guardarTurno = sistema.mongo.turnos.replaceOne.bind(sistema.mongo.turnos);
+    let fallar = true;
+    sistema.mongo.turnos.replaceOne = ((...args: Parameters<typeof guardarTurno>) => {
+      if (fallar) {
+        fallar = false;
+        return Promise.reject(new Error('MongoDB caído'));
+      }
+      return guardarTurno(...args);
+    }) as typeof sistema.mongo.turnos.replaceOne;
+    llm.guionar('r.1', [{ tipo: 'texto', texto: 'Primera respuesta' }, { tipo: 'texto', texto: 'Segunda respuesta' }]);
+
+    await sistema.api.inject({ method: 'POST', url: '/webhooks/messages', payload: mensaje('r.1', 'Pregunta') });
+    await esperarProcesados(sistema.pool, ['r.1'], 20_000);
+
+    const pedidos = llm.pedidos.filter((p) => p.etiqueta === 'r.1');
+    expect(pedidos).toHaveLength(2);
+    expect(pedidos[1]!.mensajes.slice(1)).toEqual([{ rol: 'paciente', contenido: 'Pregunta' }]);
+    expect((await sistema.mongo.mensajes.findOne({ _id: 'r.1:salida' }))?.texto).toBe('Segunda respuesta');
+  });
+});
+
 describe('trabajador: último intento agotado', () => {
   let sistema: Sistema;
   let llm: LlmGuionado;

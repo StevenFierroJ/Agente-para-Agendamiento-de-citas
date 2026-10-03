@@ -58,7 +58,9 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
         sedes: catalogo.sedes.map((s) => s.nombre),
         especialidades: catalogo.especialidades.map((e) => e.nombre),
       }),
-      historial: historial.map(
+      // En un reintento, la respuesta de un intento anterior de este mismo mensaje
+      // ya puede estar guardada: no es historial, es el turno que se está rehaciendo.
+      historial: historial.filter((m) => m.id !== `${messageId}:salida`).map(
         (m): MensajeLlm => (m.rol === 'paciente' ? { rol: 'paciente', contenido: m.texto } : { rol: 'asistente', contenido: m.texto }),
       ),
     },

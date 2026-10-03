@@ -204,6 +204,37 @@ después del último punto de corte. Se reevalúa si el prefijo crece (por
 ejemplo, con instrucciones por clínica) o si se cambia a un modelo con un
 mínimo de 512 tokens.
 
+### D-22 · Un reintento no ve su propia respuesta anterior
+Lo encontró el harness de volumen pausando MongoDB 25 s. Si un intento guardaba
+la respuesta (`:salida`) y fallaba al guardar el turno, el reintento leía el
+historial con esa respuesta incluida: el modelo veía su propia contestación al
+mensaje que estaba respondiendo. En los grupos que peleaban por un horario, la
+cita quedaba hecha en PostgreSQL, pero el reintento no volvía a llamar a
+`agendar_cita`: la traza la perdía y la conversación bajaba de `cita_agendada` a
+`resuelta_por_ia`. Ahora el historial de un turno excluye la salida de su propio
+mensaje. El reintento vuelve a llamar a `agendar_cita`, que devuelve "ya era
+tuya" (invariante 4), y la traza queda completa. Hay un test de regresión en
+`tests/trabajador.test.ts`.
+
+### D-23 · MongoDB con `socketTimeoutMS`
+Sin ese límite, una operación contra un MongoDB que dejó de responder espera
+para siempre, y el trabajo nunca falla ni se reintenta. Con 10 s, la operación
+falla y la cola reintenta con espera exponencial. Medido con el harness de
+volumen: una pausa de 8 s no provoca reintentos (las operaciones esperan y
+siguen); con 25 s se reintentan 8 trabajos y con 60 s, 38 (hasta el último
+intento). En los tres casos no hubo mensajes perdidos ni violaciones.
+
+### D-24 · Capacidad medida
+Con el harness de volumen (LLM falso con 300–1.500 ms de latencia, 20 turnos en
+paralelo, un solo proceso trabajador): el webhook responde con p95 de 57 ms a
+más de 3.000 peticiones por segundo, y el trabajador procesa entre 10 y 16 turnos
+por segundo. El escenario del enunciado (20.000 mensajes al día, ~2–3 por segundo
+en hora pico) usa una fracción de un solo proceso. En esas corridas el cuello de
+botella es la latencia del LLM, no las bases. La prueba fue una ráfaga de 2.100
+mensajes de una vez, no un flujo sostenido. Con el LLM real la latencia por
+turno es de 1,4 a 4,4 s (D-20), así que la concurrencia del trabajador debe
+dimensionarse con esa cifra y con los límites de tasa del proveedor.
+
 ## Secciones pendientes
 
 - Arquitectura general

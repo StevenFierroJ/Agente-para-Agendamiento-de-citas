@@ -13,7 +13,9 @@ export interface Mongo {
 }
 
 export async function conectarMongo(url: string): Promise<Mongo> {
-  const cliente = new MongoClient(url, { serverSelectionTimeoutMS: 5_000 });
+  // Sin socketTimeoutMS, una operación contra un servidor que dejó de responder
+  // espera para siempre; con él, falla y la cola reintenta el trabajo.
+  const cliente = new MongoClient(url, { serverSelectionTimeoutMS: 5_000, socketTimeoutMS: 10_000 });
   await cliente.connect();
   const db = cliente.db();
   const mensajes = db.collection<DocMensaje>('mensajes');

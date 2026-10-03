@@ -65,3 +65,13 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   con lo esperado revisado sobre la conversación completa (`llamadas_incluyen`).
 - **Markdown en WhatsApp.** El modelo respondía con `**negritas**`, que WhatsApp
   muestra literal. Se agregó una regla de formato al prompt.
+- **Bug de reintentos escrito por la IA y encontrado por el caos.** `procesar-mensaje.ts`
+  leía el historial sin excluir la respuesta del propio mensaje; un reintento
+  veía su contestación anterior (D-22). Los tests y el goldset no lo vieron: hizo
+  falta pausar MongoDB más de lo que dura `socketTimeoutMS`.
+- **Una prueba de caos que no probaba nada.** La primera corrida de caos pausó
+  MongoDB 8 s y salió "sin violaciones". La IA casi la reporta como prueba de que
+  los reintentos funcionan, pero la pausa fue más corta que el tiempo límite del
+  socket y no hubo un solo reintento. Se agregó al harness la métrica de trabajos
+  reintentados. Lección: un "sin violaciones" vale si el caos efectivamente
+  ocurrió.

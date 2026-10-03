@@ -127,7 +127,7 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 - Tope: 5 iteraciones. Al agotarse → escalar.
 - Límite de 20 s por llamada, con `AbortController`. Un reintento.
 - Si falla tras el reintento: mensaje fijo al paciente, conversación a `escalada`, turno guardado con el error.
-- Historial: últimos 20 mensajes de la conversación.
+- Historial: últimos 20 mensajes de la conversación, sin la salida del propio mensaje (un reintento no ve su respuesta anterior, D-22).
 - Al reenviar el mensaje del asistente con llamadas a herramientas, **se reenvían los bloques `content` tal como llegaron**, sin reconstruirlos. Los `tool_result` consecutivos van en un solo mensaje `user`, con `is_error` cuando la herramienta falló.
 - Prompt de sistema, armado por código en cada turno: fecha, hora y día de la semana en Colombia; lista de sedes y especialidades válidas leída de la base; regla de responder solo con lo que devuelve `buscar_conocimiento`; regla de escalar o decir que no se sabe.
 

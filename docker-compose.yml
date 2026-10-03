@@ -7,9 +7,11 @@
 # Orden de arranque: postgres y mongo sanos → preparar (migraciones, agenda,
 # documentos) termina bien → api y trabajador → web.
 
+# La imagen del backend se construye una vez (en `preparar`); api y trabajador
+# la reutilizan sin intentar descargarla de un registro.
 x-backend: &backend
-  build: ./backend
   image: wekall-agendamiento-backend
+  pull_policy: never
   env_file:
     - path: .env
       required: false
@@ -66,6 +68,7 @@ services:
   # Es idempotente: volver a correrlo no duplica nada.
   preparar:
     <<: *backend
+    build: ./backend
     command: ["node", "--import", "tsx", "seed/seed.ts"]
     restart: "no"
 

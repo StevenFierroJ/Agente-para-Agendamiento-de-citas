@@ -18,16 +18,27 @@ cp .env.example .env        # y pon tu key en ANTHROPIC_API_KEY=sk-ant-...
 docker compose up --build -d
 ```
 
+O con make, que además imprime dónde abrir cada cosa al terminar:
+
+```bash
+make up
+```
+
+| Qué | Dónde |
+|---|---|
+| **Interfaz** (bandeja, detalle, simulador) | **http://localhost:8080** |
+| API | http://localhost:3000 |
+
 Con `-d` corre en segundo plano y te devuelve la terminal. Sin `-d` también
 funciona, pero la terminal queda mostrando los logs de todos los servicios y no
 "termina": son servidores que siguen corriendo hasta que los detengas.
 
-| Para | Comando |
-|---|---|
-| Ver si todo está arriba | `docker compose ps` |
-| Seguir los logs de la aplicación | `docker compose logs -f api trabajador` |
-| Detener todo, conservando los datos | `docker compose down` |
-| Detener todo y borrar los datos (empezar de cero) | `docker compose down -v` |
+| Para | Con make | Con docker compose |
+|---|---|---|
+| Ver servicios y puertos | `make ps` | `docker compose ps` |
+| Seguir los logs de la aplicación | `make logs` | `docker compose logs -f api trabajador` |
+| Detener todo, conservando los datos | `make down` | `docker compose down` |
+| Detener todo y borrar los datos | `make reset` | `docker compose down -v` |
 
 - **Interfaz:** http://localhost:8080. Tiene tres vistas: **bandeja** con filtro
   por estado, **detalle** de cada conversación con las herramientas y el costo

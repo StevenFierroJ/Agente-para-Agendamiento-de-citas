@@ -15,8 +15,19 @@ Requisitos: Docker con Compose v2 y una API key de Anthropic.
 
 ```bash
 cp .env.example .env        # y pon tu key en ANTHROPIC_API_KEY=sk-ant-...
-docker compose up --build
+docker compose up --build -d
 ```
+
+Con `-d` corre en segundo plano y te devuelve la terminal. Sin `-d` también
+funciona, pero la terminal queda mostrando los logs de todos los servicios y no
+"termina": son servidores que siguen corriendo hasta que los detengas.
+
+| Para | Comando |
+|---|---|
+| Ver si todo está arriba | `docker compose ps` |
+| Seguir los logs de la aplicación | `docker compose logs -f api trabajador` |
+| Detener todo, conservando los datos | `docker compose down` |
+| Detener todo y borrar los datos (empezar de cero) | `docker compose down -v` |
 
 - **Interfaz:** http://localhost:8080. Tiene tres vistas: **bandeja** con filtro
   por estado, **detalle** de cada conversación con las herramientas y el costo
@@ -38,8 +49,6 @@ de embeddings (~118 MB) **dentro de la imagen**, así el arranque no depende de 
 red. Las URLs de las bases del `.env` apuntan a `localhost` para el modo
 desarrollo; dentro de compose se reemplazan por los nombres de servicio.
 
-Para detener: `docker compose down`. Para empezar de cero, borrando los datos:
-`docker compose down -v`.
 
 ## Modo desarrollo (sin contenedores para la aplicación)
 

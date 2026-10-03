@@ -178,6 +178,32 @@ a un savepoint, se relee la cita ganadora y se devuelve `horario_ocupado` (o
 UPDATE` sobre el horario: el índice ya serializa, y un bloqueo explícito
 agregaría esperas sin cambiar el resultado.
 
+### D-20 · Proveedor de LLM: Claude Haiku 4.5
+Decisión del director, que reemplaza el plan inicial (Gemini por su punto de
+acceso compatible con OpenAI). Se usa `claude-haiku-4-5` con el SDK oficial
+`@anthropic-ai/sdk`, sin LangChain, con el ciclo de herramientas escrito a mano.
+- **Precio** (página oficial, consultada el 2026-10-03): $1 por millón de tokens
+  de entrada y $5 por millón de salida. Usar herramientas agrega 496 tokens de
+  prompt de sistema por llamada.
+- **Reintentos:** el SDK se configura con `maxRetries: 0`. El orquestador hace
+  una llamada y un reintento con su propio límite de 20 s. Si el SDK también
+  reintentara, el peor caso pasaría de 40 s a 120 s.
+- **Errores:** cancelación y tiempo agotado → `timeout`; cualquier otro error
+  del SDK (4xx, 5xx, conexión) → `proveedor`. `stop_reason` `max_tokens` o
+  `refusal` también son falla: no se usa una respuesta incompleta.
+- **Medido con el goldset real** (3 turnos del ejemplo del enunciado): entre
+  1.650 y 6.960 tokens de entrada por turno, USD 0,016 la conversación completa,
+  de 1,4 a 4,4 s por turno.
+
+### D-21 · Sin prompt caching (por ahora)
+Haiku 4.5 solo cachea prefijos de 4.096 tokens o más. El prefijo estable
+(definiciones de herramientas y prompt de sistema) mide unos 1.500 tokens, así
+que `cache_control` no tendría efecto. Además, el prompt de sistema lleva la
+fecha y la hora del turno; si algún día se cachea, esa parte tiene que ir
+después del último punto de corte. Se reevalúa si el prefijo crece (por
+ejemplo, con instrucciones por clínica) o si se cambia a un modelo con un
+mínimo de 512 tokens.
+
 ## Secciones pendientes
 
 - Arquitectura general

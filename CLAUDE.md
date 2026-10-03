@@ -20,7 +20,7 @@ Plazo: dos días. El enunciado completo está en `docs/enunciado.pdf`.
 | Vectores | `pgvector`, columna `vector(384)` |
 | Embeddings | `multilingual-e5-small` local, en proceso, con `@huggingface/transformers` |
 | Cola | `pg-boss` sobre el mismo PostgreSQL |
-| LLM | Gemini, por su punto de acceso compatible con OpenAI, usando el SDK `openai` |
+| LLM | Claude Haiku 4.5 (`claude-haiku-4-5`) con el SDK oficial `@anthropic-ai/sdk` (D-20) |
 | Fechas | `luxon` |
 | Frontend | React + Vite, consulta periódica |
 | Tests | Vitest contra PostgreSQL y MongoDB reales en Docker |
@@ -123,12 +123,12 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 
 ## Ciclo del LLM
 
-- Interfaz `LlmClient.completar({mensajes, herramientas}) → {texto?, llamadas[], tokens, modelo}`. Implementación real con el SDK `openai` apuntando a `LLM_BASE_URL`. Implementación falsa con respuestas guionadas para tests.
+- Interfaz `LlmClient.completar({mensajes, herramientas, senal, etiqueta}) → {texto?, llamadas[], tokens, modelo}`. Implementación real `LlmAnthropic` (`maxRetries: 0`: el reintento es del orquestador). Implementación falsa `LlmGuionado` para tests y harness.
 - Tope: 5 iteraciones. Al agotarse → escalar.
 - Límite de 20 s por llamada, con `AbortController`. Un reintento.
 - Si falla tras el reintento: mensaje fijo al paciente, conversación a `escalada`, turno guardado con el error.
 - Historial: últimos 20 mensajes de la conversación.
-- Al reenviar el mensaje del asistente con llamadas a herramientas, **se reenvía el objeto tal como llegó**, sin reconstruirlo. Gemini puede incluir campos adicionales que necesita de vuelta.
+- Al reenviar el mensaje del asistente con llamadas a herramientas, **se reenvían los bloques `content` tal como llegaron**, sin reconstruirlos. Los `tool_result` consecutivos van en un solo mensaje `user`, con `is_error` cuando la herramienta falló.
 - Prompt de sistema, armado por código en cada turno: fecha, hora y día de la semana en Colombia; lista de sedes y especialidades válidas leída de la base; regla de responder solo con lo que devuelve `buscar_conocimiento`; regla de escalar o decir que no se sabe.
 
 ### Estado final del turno (lo decide el código, no el modelo)
@@ -167,9 +167,9 @@ Tres vistas: bandeja con filtro por estado, detalle de conversación con herrami
 ## Variables de entorno
 
 ```
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
-LLM_API_KEY=
-LLM_MODEL=
+ANTHROPIC_API_KEY=
+LLM_MODEL=claude-haiku-4-5
+LLM_MAX_TOKENS=1024
 LLM_TIMEOUT_MS=20000
 LLM_MAX_ITERACIONES=5
 LLM_PRECIO_ENTRADA_1M=
@@ -180,7 +180,7 @@ MONGO_URL=
 SEED_DESDE=
 ```
 
-`.env.example` en el repositorio; `.env` en `.gitignore`. Ninguna llave en el código ni en el historial de Git. `LLM_MODEL` se elige al inicio consultando la lista vigente de modelos de Gemini; no fijarlo de memoria.
+`.env.example` en el repositorio; `.env` en `.gitignore`. Ninguna llave en el código ni en el historial de Git. Precios de Haiku 4.5 verificados el 2026-10-03 en la página oficial ($1 / $5 por millón).
 
 ## Harness (ver `backend/harness/README.md`)
 

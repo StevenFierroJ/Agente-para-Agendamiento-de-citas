@@ -1,0 +1,83 @@
+{
+  "id": "real-enunciado-conversacion",
+  "descripcion": "El ejemplo del enunciado con el modelo real, en tres mensajes. No se exige un camino: el modelo puede preguntar la sede o consultar las dos, y puede pedir confirmación antes de agendar. Se exige que en algún turno consulte dermatología para el 6 (no el 7: zona horaria), que nunca agende sin tener el nombre, y que al final haya exactamente una cita a nombre del paciente.",
+  "cubre": [
+    "cita_agendada",
+    "zona_horaria"
+  ],
+  "modos": [
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.real-enunciado.1",
+        "from": "+5730000000030",
+        "text": "Hola, ¿tienen cita con dermatología mañana en la tarde?",
+        "timestamp": "2026-10-06T03:40:00Z"
+      },
+      "http": [
+        202
+      ],
+      "espera_real": {
+        "estado_final": "resuelta_por_ia",
+        "herramientas_excluye": [
+          "agendar_cita"
+        ]
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.real-enunciado.2",
+        "from": "+5730000000030",
+        "text": "En la Sede Sur, a las 2 de la tarde. Es a nombre de Ana María Pérez",
+        "timestamp": "2026-10-06T03:42:00Z"
+      },
+      "http": [
+        202
+      ],
+      "espera_real": {
+        "estado_final": [
+          "resuelta_por_ia",
+          "cita_agendada"
+        ]
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.real-enunciado.3",
+        "from": "+5730000000030",
+        "text": "Sí, confirmo",
+        "timestamp": "2026-10-06T03:43:00Z"
+      },
+      "http": [
+        202
+      ],
+      "espera_real": {
+        "estado_final": [
+          "cita_agendada",
+          "resuelta_por_ia"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "citas_activas_total": 1,
+    "llamadas_incluyen": [
+      {
+        "nombre": "consultar_disponibilidad",
+        "argumentos": {
+          "especialidad": "Dermatología",
+          "fecha": "2026-10-06"
+        }
+      },
+      {
+        "nombre": "agendar_cita",
+        "argumentos": {
+          "nombre_paciente": "Ana María Pérez"
+        }
+      }
+    ]
+  }
+}

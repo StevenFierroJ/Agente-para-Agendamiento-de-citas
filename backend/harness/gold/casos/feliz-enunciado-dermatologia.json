@@ -1,14 +1,13 @@
 {
   "id": "feliz-enunciado-dermatologia",
-  "descripcion": "El mensaje del enunciado: llega 03:40 UTC del 6 (22:40 del 5 en Cali). \"Mañana\" es el 6. El martes en la tarde solo hay dermatología en la Sede Sur; el paciente elige y se agenda.",
+  "descripcion": "El mensaje del enunciado: llega 03:40 UTC del 6 (22:40 del 5 en Cali). \"Mañana\" es el 6. El martes en la tarde solo hay dermatología en la Sede Sur; el paciente elige y se agenda. Modo guion; la versión con el modelo real es real-enunciado-conversacion.",
   "cubre": [
     "cita_agendada",
     "zona_horaria",
     "sin_horarios"
   ],
   "modos": [
-    "guion",
-    "real"
+    "guion"
   ],
   "validado_por": null,
   "envios": [
@@ -67,24 +66,6 @@
           "Sede Sur",
           "Dermatología"
         ]
-      },
-      "espera_real": {
-        "estado_final": "resuelta_por_ia",
-        "herramientas_incluye": [
-          "consultar_disponibilidad"
-        ],
-        "herramientas_excluye": [
-          "agendar_cita"
-        ],
-        "herramientas_con_argumentos": [
-          {
-            "nombre": "consultar_disponibilidad",
-            "argumentos": {
-              "fecha": "2026-10-06",
-              "especialidad": "Dermatología"
-            }
-          }
-        ]
       }
     },
     {
@@ -129,12 +110,6 @@
           }
         ],
         "estado_final": "cita_agendada"
-      },
-      "espera_real": {
-        "estado_final": "cita_agendada",
-        "herramientas_incluye": [
-          "agendar_cita"
-        ]
       }
     }
   ],

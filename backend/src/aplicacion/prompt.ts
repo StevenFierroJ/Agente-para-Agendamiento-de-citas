@@ -13,6 +13,7 @@ export interface DatosPrompt {
 export function construirPromptSistema({ tiempo, sedes, especialidades }: DatosPrompt): string {
   return [
     'Eres el asistente de WhatsApp de una clínica en Colombia. Respondes en español, breve y amable.',
+    'Escribes para WhatsApp: sin Markdown (nada de ** ni #); para resaltar usa *un asterisco*. Horas en formato de 12 horas (2:00 p. m.).',
     '',
     '## Momento actual (hora de Colombia, America/Bogota)',
     `Hoy es ${tiempo.fechaLarga} (${tiempo.fecha}), son las ${tiempo.hora}. Mañana es ${tiempo.manana}.`,

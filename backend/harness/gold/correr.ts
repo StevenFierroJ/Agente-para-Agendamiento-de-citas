@@ -18,6 +18,7 @@ import { leerConfig, preciosLlm } from '../../src/config.js';
 import { crearHerramientas } from '../../src/aplicacion/herramientas/registro.js';
 import type { LlmClient } from '../../src/aplicacion/puertos.js';
 import { COLA_MENSAJES } from '../../src/infraestructura/cola/cola.js';
+import { crearLlmReal } from '../../src/infraestructura/llm/crear.js';
 import { LlmGuionado, type PedidoRegistrado, type RespuestaGuionada } from '../../src/infraestructura/llm/falso.js';
 import type { DocMensaje, DocTurno } from '../../src/infraestructura/mongo/mongo.js';
 import { registroSilencioso } from '../../src/infraestructura/registro.js';
@@ -64,7 +65,8 @@ async function main(): Promise<number> {
 
   const config = leerConfig({ ...process.env, DATABASE_URL: URL_POSTGRES_HARNESS, MONGO_URL: URL_MONGO_HARNESS });
   const llmGuionado = new LlmGuionado();
-  const llm: LlmClient = modo === 'guion' ? llmGuionado : await crearLlmReal();
+  const registrador = modo === 'guion' ? llmGuionado : new LlmQueRegistra(crearLlmReal(config));
+  const llm: LlmClient = registrador;
 
   console.log(`${casos.length} caso(s) · modo ${modo}${modo === 'guion' ? ' (LLM falso, no gasta)' : ' (GASTA)'}`);
   const sinValidar = casos.filter((c) => !c.validado_por).length;
@@ -91,7 +93,7 @@ async function main(): Promise<number> {
   const resultados: ResultadoCaso[] = [];
   try {
     for (const caso of casos) {
-      const resultado = await correrCaso(caso, modo, sistema, llmGuionado, base);
+      const resultado = await correrCaso(caso, modo, sistema, llmGuionado, registrador, base);
       resultados.push(resultado);
       console.log(`${resultado.ok ? '✓' : '✗'} ${caso.id}`);
       for (const falla of resultado.fallas) console.log(`    ${falla}`);
@@ -136,6 +138,21 @@ async function main(): Promise<number> {
   return fallidos.length ? 1 : 0;
 }
 
+/** Envuelve al LLM real para guardar cada pedido: el transcript y la revisión del teléfono lo necesitan. */
+class LlmQueRegistra implements LlmClient {
+  readonly pedidos: PedidoRegistrado[] = [];
+  constructor(private readonly real: LlmClient) {}
+  completar(pedido: Parameters<LlmClient['completar']>[0]) {
+    this.pedidos.push({
+      etiqueta: pedido.etiqueta,
+      mensajes: structuredClone([...pedido.mensajes]),
+      herramientas: pedido.herramientas.map((h) => h.nombre),
+      en: Date.now(),
+    });
+    return this.real.completar(pedido);
+  }
+}
+
 /** `--solo 'webhook-*,llm-timeout'`: ids exactos o prefijos con `*`. */
 function filtrar(casos: CasoGold[], solo: string | undefined): CasoGold[] {
   if (!solo) return casos;
@@ -143,17 +160,21 @@ function filtrar(casos: CasoGold[], solo: string | undefined): CasoGold[] {
   return casos.filter((c) => patrones.some((p) => (p.endsWith('*') ? c.id.startsWith(p.slice(0, -1)) : c.id === p)));
 }
 
-async function crearLlmReal(): Promise<LlmClient> {
-  throw new Error('El modo real necesita el cliente del LLM real (paso 5).');
-}
 
 // ---------------------------------------------------------------------------
 // Un caso
 // ---------------------------------------------------------------------------
 
-async function correrCaso(caso: CasoGold, modo: Modo, sistema: Sistema, llm: LlmGuionado, base: string): Promise<ResultadoCaso> {
+async function correrCaso(
+  caso: CasoGold,
+  modo: Modo,
+  sistema: Sistema,
+  llm: LlmGuionado,
+  registrador: { pedidos: PedidoRegistrado[] },
+  base: string,
+): Promise<ResultadoCaso> {
   const fallas: string[] = [];
-  await limpiar(sistema, llm);
+  await limpiar(sistema, llm, registrador);
   await preparar(caso, sistema.pool);
 
   if (modo === 'guion') {
@@ -177,7 +198,7 @@ async function correrCaso(caso: CasoGold, modo: Modo, sistema: Sistema, llm: Llm
   const ids = caso.envios.flatMap((e) => (e.cuerpo ? [e.cuerpo.message_id] : []));
   const turnos = await sistema.mongo.turnos.find({ _id: { $in: ids } }).toArray();
   const respuestas = await sistema.mongo.mensajes.find({ message_id: { $in: ids }, rol: 'asistente' }).toArray();
-  const pedidos = llm.pedidos.filter((p) => ids.includes(p.etiqueta));
+  const pedidos = registrador.pedidos.filter((p) => ids.includes(p.etiqueta));
 
   for (const envio of caso.envios) {
     const nombre = envio.cuerpo?.message_id ?? 'cuerpo inválido';
@@ -217,11 +238,12 @@ async function correrCaso(caso: CasoGold, modo: Modo, sistema: Sistema, llm: Llm
   };
 }
 
-async function limpiar(sistema: Sistema, llm: LlmGuionado): Promise<void> {
+async function limpiar(sistema: Sistema, llm: LlmGuionado, registrador: { pedidos: PedidoRegistrado[] }): Promise<void> {
   await sistema.boss.deleteAllJobs(COLA_MENSAJES);
   await sistema.pool.query('TRUNCATE citas, mensajes_entrantes, conversaciones RESTART IDENTITY CASCADE');
   await Promise.all([sistema.mongo.mensajes.deleteMany({}), sistema.mongo.turnos.deleteMany({})]);
   llm.olvidar();
+  registrador.pedidos.length = 0;
 }
 
 async function preparar(caso: CasoGold, pool: pg.Pool): Promise<void> {
@@ -383,6 +405,20 @@ async function evaluarFinal(caso: CasoGold, sistema: Sistema): Promise<string[]>
   const turnos = await sistema.mongo.turnos.find({}).sort({ iniciado_en: 1 }).toArray();
   if (espera.turnos_total !== undefined && turnos.length !== espera.turnos_total) {
     fallas.push(`final: ${turnos.length} turno(s), se esperaban ${espera.turnos_total}`);
+  }
+  for (const esperada of espera.llamadas_incluyen ?? []) {
+    const coincide = turnos.some((t) =>
+      t.herramientas.some(
+        (h) =>
+          h.nombre === esperada.nombre &&
+          h.error === null &&
+          typeof h.argumentos === 'object' && h.argumentos !== null &&
+          Object.entries(esperada.argumentos).every(
+            ([k, v]) => JSON.stringify((h.argumentos as Record<string, unknown>)[k]) === JSON.stringify(v),
+          ),
+      ),
+    );
+    if (!coincide) fallas.push(`final: ningún turno llamó con éxito a ${esperada.nombre} con ${JSON.stringify(esperada.argumentos)}`);
   }
   if (espera.turnos_en_serie) {
     const porConversacion = new Map<number, DocTurno[]>();

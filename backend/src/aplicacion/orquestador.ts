@@ -125,7 +125,7 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
       });
       if (salida.ok && llamada.nombre === HERRAMIENTA_AGENDAR) hechos.agendoCita = true;
       if (salida.ok && llamada.nombre === HERRAMIENTA_ESCALAR) hechos.escaloElModelo = true;
-      mensajes.push({ rol: 'herramienta', llamadaId: llamada.id, contenido: JSON.stringify(salida) });
+      mensajes.push({ rol: 'herramienta', llamadaId: llamada.id, contenido: JSON.stringify(salida), esError: !salida.ok });
     }
   }
 

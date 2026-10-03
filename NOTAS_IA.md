@@ -54,3 +54,14 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   bloqueada en el índice. Al repetir la medición con una inserción confiable,
   ese camino se toma 28 veces en los tests concurrentes. Quedaron los dos tests.
   Lección: verificar que la instrumentación se aplicó antes de leer su resultado.
+
+## Paso 5
+
+- **El goldset en modo real esperaba un único camino.** La IA escribió lo
+  esperado del caso del enunciado como si el modelo fuera a consultar las dos
+  sedes en el primer mensaje. Haiku preguntó la sede (el paciente no la dijo) y
+  pidió confirmación antes de agendar: un comportamiento correcto que el caso
+  marcaba como falla. Se separó en un caso de guion y uno real de tres mensajes,
+  con lo esperado revisado sobre la conversación completa (`llamadas_incluyen`).
+- **Markdown en WhatsApp.** El modelo respondía con `**negritas**`, que WhatsApp
+  muestra literal. Se agregó una regla de formato al prompt.

@@ -11,9 +11,12 @@
     "seed": "tsx --env-file-if-exists=../.env seed/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "harness:gold": "tsx --env-file-if-exists=../.env harness/gold/correr.ts"
+    "harness:gold": "tsx --env-file-if-exists=../.env harness/gold/correr.ts",
+    "api": "tsx --env-file-if-exists=../.env src/api.ts",
+    "trabajador": "tsx --env-file-if-exists=../.env src/trabajador.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "fastify": "^5.12.5",
     "luxon": "^3.7.2",
     "mongodb": "^7.7.0",

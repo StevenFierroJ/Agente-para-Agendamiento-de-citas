@@ -14,7 +14,7 @@ export type MensajeLlm =
   // El mensaje del asistente que pidió herramientas se reenvía tal como llegó:
   // el proveedor puede incluir campos que necesita de vuelta.
   | { rol: 'asistente_con_llamadas'; crudo: unknown }
-  | { rol: 'herramienta'; llamadaId: string; contenido: string };
+  | { rol: 'herramienta'; llamadaId: string; contenido: string; esError: boolean };
 
 export interface DefinicionHerramienta {
   nombre: string;

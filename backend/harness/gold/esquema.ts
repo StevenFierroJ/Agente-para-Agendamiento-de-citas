@@ -145,6 +145,11 @@ const EsperaFinal = z
     turnos_total: z.number().int().min(0).optional(),
     // Los turnos de cada conversación no se solapan y siguen el orden de `timestamp`.
     turnos_en_serie: z.boolean().optional(),
+    // En algún turno del caso hubo una llamada exitosa a `nombre` cuyos argumentos
+    // incluyen estos pares. Sirve al modo real, donde no se sabe en qué turno pasa.
+    llamadas_incluyen: z
+      .array(z.object({ nombre: z.string(), argumentos: z.record(z.string(), z.unknown()).default({}) }).strict())
+      .optional(),
   })
   .strict();
 

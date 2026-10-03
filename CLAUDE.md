@@ -60,7 +60,7 @@ README.md
 
 `dominio/` no importa nada de `infraestructura/`. `aplicacion/` depende de interfaces, no de SDK.
 
-La API y el trabajador se arman con funciones fábrica (`crearApi(deps)`, `crearTrabajador(deps)`) que reciben `LlmClient` y `EmbeddingClient`: el harness los levanta en proceso con un LLM falso guionado por `message_id`. `api.ts` y `trabajador.ts` solo leen el entorno y llaman a la fábrica.
+La API y el trabajador se arman con `levantarSistema(opciones)` (`src/sistema.ts`), que recibe `LlmClient` y una fábrica de herramientas: el harness los levanta en proceso con un LLM falso guionado por `message_id`. `api.ts` y `trabajador.ts` solo leen el entorno y llaman a la fábrica.
 
 ## Modelo de datos
 
@@ -84,9 +84,9 @@ La API y el trabajador se arman con funciones fábrica (`crearApi(deps)`, `crear
 
 ### MongoDB (forma variable, crecimiento rápido)
 
-- `mensajes`: `_id` determinista (`<message_id>:entrada`, `<message_id>:salida`), conversacion_id, rol, texto, fecha.
-  - Índice: (conversacion_id, fecha).
-- `turnos`: `_id` = `message_id`, conversacion_id, fecha, modelo, tokens_entrada, tokens_salida, costo_usd, latencia_ms, herramientas `[{nombre, argumentos, resultado, error, duracion_ms}]`, estado_final, error.
+- `mensajes`: `_id` determinista (`<message_id>:entrada`, `<message_id>:salida`), conversacion_id, message_id, rol, texto, fecha (timestamp del paciente en ambos), orden (0/1), guardado_en.
+  - Índice: (conversacion_id, fecha, orden) (D-15).
+- `turnos`: `_id` = `message_id`, conversacion_id, fecha, iniciado_en, terminado_en, iteraciones, llamadas_llm, modelo, tokens_entrada, tokens_salida, costo_usd, latencia_ms, herramientas `[{nombre, argumentos, resultado, error, duracion_ms}]`, estado_final, error.
   - Índice: (conversacion_id, fecha).
 
 ### Consistencia entre las dos bases
@@ -102,7 +102,7 @@ La API y el trabajador se arman con funciones fábrica (`crearApi(deps)`, `crear
 3. **Cita sin duplicado.** `agendar_cita` inserta dentro de una transacción; la violación de unicidad (código `23505`) se traduce a error `horario_ocupado` que vuelve al modelo. Test con dos inserciones concurrentes: una gana.
 4. **Reintento del mismo turno.** Si el horario ya tiene cita activa de la **misma** conversación, `agendar_cita` devuelve éxito con esa cita.
 5. **Hora de Colombia.** El "ahora" de un turno es el `timestamp` del mensaje convertido a `America/Bogota`. Nunca el reloj del servidor. Caso del enunciado: `2026-10-06T03:40:00Z` es 5 de octubre 10:40 p.m. en Cali; "mañana" es el 6.
-6. **Serie por conversación.** Dos mensajes del mismo teléfono no se procesan a la vez. `pg_try_advisory_lock` por conversación; si está tomado, reencolar con retraso. Pendientes en orden de `enviado_en`. No mantener una transacción abierta durante la llamada al LLM (D-03).
+6. **Serie por conversación.** Dos mensajes del mismo teléfono no se procesan a la vez. Cola `key_strict_fifo` de pg-boss con `singletonKey` = conversación: un trabajo activo por clave, FIFO por llegada. El último intento nunca termina `failed` (lo bloquearía): se marca `fallido` y se escala (D-03, D-14). No mantener una transacción abierta durante la llamada al LLM.
 7. **Conversación escalada.** No se llama al LLM; se responde un mensaje fijo.
 
 ## Herramientas

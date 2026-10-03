@@ -25,3 +25,16 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   tarde ("mañana en la tarde" del ejemplo) no había dermatología en ninguna sede.
   Lo detectó el armado del goldset, al escribir el caso del enunciado contra la
   agenda real. Se movió a martes y jueves (D-10).
+
+## Paso 3
+
+- **Diseño de serie revisado tras leer la librería.** La D-03 aprobada usaba un
+  bloqueo consultivo, porque se escribió sin revisar la versión instalada de
+  pg-boss. Al leer sus tipos apareció `key_strict_fifo`, que lo resuelve en la
+  cola. Se consultó al director antes de cambiar una decisión ya aprobada.
+- **`Map.groupBy` en código que declara Node 20.** La IA lo usó en el runner del
+  harness; existe recién en Node 21. Lo atrapó el chequeo de tipos (lib ES2023) y
+  se reemplazó por un bucle.
+- **Expectativa equivocada en un test.** La IA supuso que Fastify responde 415 a
+  un cuerpo `text/plain`; en realidad lo acepta, y zod lo rechaza con 400. Se
+  corrigió el test, no el código: el 400 con detalle es la respuesta correcta.

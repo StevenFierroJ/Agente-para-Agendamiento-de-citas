@@ -20,13 +20,26 @@ millón de tokens de `LLM_PRECIO_ENTRADA_1M` y `LLM_PRECIO_SALIDA_1M`. Los preci
 van en configuración y no en el código porque cambian; el valor usado se anota
 con fecha de consulta.
 
-### D-03 · Mensajes del mismo teléfono: uno a la vez y en orden
-- Bloqueo consultivo por conversación tomado con `pg_try_advisory_lock` (sin
-  esperar). Si otro trabajador ya tiene la conversación, el trabajo se vuelve a
-  encolar con un retraso corto en lugar de ocupar un trabajador esperando.
-- Con el bloqueo tomado, se procesan los mensajes pendientes de la conversación
-  en orden de `enviado_en`, no en el orden en que la cola los entregó.
-- No se mantiene una transacción abierta durante la llamada al LLM.
+### D-03 · Mensajes del mismo teléfono: uno a la vez y en orden (revisada)
+**Versión final:** la cola de `pg-boss` usa la política `key_strict_fifo` con
+`singletonKey` = id de la conversación. La base garantiza, entre todos los
+trabajadores, un solo trabajo activo por conversación y orden FIFO por clave.
+Conversaciones distintas se procesan en paralelo.
+
+**Primera versión, descartada:** un bloqueo consultivo por conversación
+(`pg_try_advisory_lock`), con reencolado si estaba tomado y procesamiento de
+los pendientes por `enviado_en`. Se descartó al revisar la API de pg-boss 12:
+retenía una conexión durante la llamada al LLM, reencolaba en bucle cuando había
+contención y había que reimplementarlo en producción. `key_strict_fifo` es el
+mismo modelo que una cola SQS FIFO con `MessageGroupId` = conversación, así que
+el diseño de AWS no cambia la semántica.
+
+**Costos aceptados:**
+- El orden es el de llegada al webhook, no el del `timestamp`. Si WhatsApp
+  entrega dos mensajes invertidos, se procesan invertidos.
+- Un trabajo que termina `failed` bloquea la conversación. Por eso el trabajador
+  nunca deja fallar el último intento (D-14).
+- Depende de una función reciente de pg-boss (12.x).
 
 ### D-04 · La agenda del seed y la fecha del ejemplo
 El seed genera 14 días calendario desde hoy (hora de Colombia). `SEED_DESDE`
@@ -97,6 +110,40 @@ Si en un turno se agendó una cita y además se escaló, el estado final es
 Se compara el inicio del bloque contra el `timestamp` del mensaje. El reintento
 de un turno que ya agendó se revisa **antes** que la hora: si la cita es de esta
 conversación, se devuelve aunque el reintento llegue cuando el bloque ya empezó.
+
+### D-14 · El último intento no se deja fallar
+Cada mensaje tiene 1 intento más 3 reintentos con espera exponencial. Si el
+último también falla (por ejemplo, MongoDB caído todo ese tiempo), el
+trabajador:
+- marca el mensaje `fallido`;
+- pasa la conversación a `escalada`;
+- intenta guardar el mensaje fijo;
+- y termina el trabajo sin error, para no bloquear la conversación (D-03).
+
+Si MongoDB sigue caído, el mensaje fijo no queda guardado. El coordinador ve la
+conversación escalada en la bandeja, que se lee de PostgreSQL.
+
+### D-15 · Orden de los mensajes en MongoDB
+Entrada y salida llevan la misma `fecha` (el `timestamp` del mensaje del
+paciente) y un campo `orden` (0 y 1). El historial se ordena por
+`(fecha, orden)`. Si la salida usara la hora del servidor, un mensaje con
+`timestamp` futuro (como los del enunciado) quedaría después de su respuesta.
+
+### D-16 · El historial que ve el modelo es solo texto
+Al LLM le llegan los últimos 20 mensajes de paciente y asistente, sin las
+llamadas a herramientas de turnos anteriores. Es más barato y basta para el
+contexto de la conversación. A cambio, el modelo no ve los `horario_id` de un
+turno anterior: si el paciente elige un horario ofrecido antes, tiene que volver
+a consultar disponibilidad. Así además confirma que el horario sigue libre.
+
+### D-17 · Respuestas del webhook
+- **202** `{estado: "recibido"}`: mensaje nuevo, registrado y encolado.
+- **200** `{estado: "duplicado"}`: el `message_id` ya existía. La transacción se
+  revierte, así que un duplicado no toca la conversación.
+- **400** `{error: "cuerpo_invalido", detalle: [{campo, mensaje}]}`: cuerpo
+  inválido, incluidos JSON mal formado y texto plano.
+- **500**: si falla el encolado, la transacción se revierte y no queda nada. El
+  proveedor reintenta y el mensaje entra como nuevo.
 
 ## Secciones pendientes
 

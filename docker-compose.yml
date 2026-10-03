@@ -1,3 +1,29 @@
+# Todo el sistema con un comando:   docker compose up --build
+#   http://localhost:8080   interfaz (bandeja, detalle, simulador)
+#   http://localhost:3000   API (webhook y lectura)
+#
+# Solo las bases (para desarrollo y tests):   docker compose up -d postgres mongo
+#
+# Orden de arranque: postgres y mongo sanos → preparar (migraciones, agenda,
+# documentos) termina bien → api y trabajador → web.
+
+x-backend: &backend
+  build: ./backend
+  image: wekall-agendamiento-backend
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    # Dentro de la red de compose las bases se llaman por su servicio; esto
+    # pisa los valores de .env, que apuntan a localhost para el modo desarrollo.
+    DATABASE_URL: postgres://agenda:agenda@postgres:5432/agenda
+    MONGO_URL: mongodb://mongo:27017/agenda
+  depends_on:
+    postgres:
+      condition: service_healthy
+    mongo:
+      condition: service_healthy
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -27,6 +53,48 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+
+  # Una sola vez por arranque: migraciones, agenda de 14 días e indexación.
+  # Es idempotente: volver a correrlo no duplica nada.
+  preparar:
+    <<: *backend
+    command: ["node", "--import", "tsx", "seed/seed.ts"]
+    restart: "no"
+
+  api:
+    <<: *backend
+    command: ["node", "--import", "tsx", "src/api.ts"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      preparar:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  trabajador:
+    <<: *backend
+    command: ["node", "--import", "tsx", "src/trabajador.ts"]
+    depends_on:
+      preparar:
+        condition: service_completed_successfully
+    # Sin ANTHROPIC_API_KEY falla al arrancar con un mensaje claro; no se
+    # reintenta para siempre.
+    restart: on-failure:3
+
+  web:
+    build: ./frontend
+    image: wekall-agendamiento-web
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pg_datos:

@@ -102,9 +102,9 @@ flowchart LR
             api["ECS Fargate · API ×2<br/>webhook, lectura, frontend estático"]
             trab["ECS Fargate · trabajador ×2..N<br/>turnos + e5-small en proceso<br/>+ relay de la bandeja de salida"]
             rds[("RDS PostgreSQL Multi-AZ<br/>+ pgvector")]
-            sqs[["SQS FIFO<br/>MessageGroupId = conversación"]]
-            dlq[["DLQ"]]
         end
+        sqs[["SQS FIFO<br/>MessageGroupId = conversación"]]
+        dlq[["DLQ"]]
         nat["NAT Gateway ×2"]
         sm["Secrets Manager"]
         cw["CloudWatch<br/>logs · métricas · alarmas"]
@@ -824,4 +824,29 @@ Que Haiku afirme la cita sin agendarla en la mitad de los turnos de confirmació
 viene de la D-16: el historial no trae los `horario_id` ofrecidos. Darle esa
 memoria bajaría las correcciones y su costo (cada una es una iteración más). Es
 el siguiente paso, y está medido.
+
+### D-30 · Despliegue local con un solo comando
+`docker compose up --build` levanta el sistema completo: las bases, `preparar`
+(migraciones, agenda e indexación; sale al terminar), la API, el trabajador y el
+frontend con nginx.
+- **Orden garantizado por compose:** bases sanas → `preparar` termina bien
+  (`service_completed_successfully`) → API sana → web.
+- **El modelo de embeddings va dentro de la imagen,** descargado al construir:
+  el arranque no depende de Hugging Face y la preparación desde volúmenes
+  vacíos tarda segundos.
+- **La misma imagen sirve para `preparar`, `api` y `trabajador`,** con otro
+  comando. Ejecuta TypeScript con `tsx` (sin paso de compilación) y sin
+  dependencias de desarrollo.
+- **El `.env` del evaluador sirve para los dos modos:** compose reemplaza las
+  URLs de las bases por los nombres de servicio.
+- **Sin key,** el trabajador falla con un mensaje claro y se reintenta como
+  máximo 3 veces, en lugar de reiniciar sin fin.
+
+Verificado desde volúmenes vacíos, con otro nombre de proyecto para no tocar los
+datos de desarrollo: `preparar` sembró 464 horarios e indexó 7 documentos, y la
+conversación del enunciado agendó la cita a través de nginx. **Costo aceptado:**
+la imagen del backend pesa 1,33 GB, casi todo `onnxruntime` (429 MB, con
+binarios de todas las plataformas) y el modelo (130 MB). Es el precio de los
+embeddings en proceso (D-25); en producción, un servicio de embeddings gestionado
+lo sacaría de la imagen.
 

@@ -52,7 +52,7 @@ backend/
   tests/
 frontend/
 docs/
-docker-compose.yml
+docker-compose.yml   todo el sistema con `docker compose up --build` (D-30)
 DECISIONS.md
 NOTAS_IA.md
 README.md

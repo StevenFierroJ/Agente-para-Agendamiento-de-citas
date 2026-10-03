@@ -1,0 +1,5 @@
+node_modules
+.cache
+harness
+tests
+*.log

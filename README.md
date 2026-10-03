@@ -5,39 +5,53 @@ WhatsApp), responde con Claude Haiku 4.5 consultando los documentos de la clíni
 y agenda citas en una agenda real. La operación es en Colombia (`America/Bogota`).
 
 - **Diseño, decisiones, costos y AWS:** [DECISIONS.md](DECISIONS.md)
+- **Arquitectura en AWS** (diagrama, servicios, escalado, fallas, costo mensual y
+  multi-tenant): [DECISIONS.md §3](DECISIONS.md#3-nube-aws)
 - **Harness (goldset, RAG, volumen):** [backend/harness/README.md](backend/harness/README.md)
 
-## Requisitos
+## Puesta en marcha: un comando
 
-- Node.js 20 o superior
-- Docker con Compose v2
-- Una API key de Anthropic
-- ~200 MB libres para el modelo de embeddings, que se descarga una vez
-
-## Puesta en marcha
+Requisitos: Docker con Compose v2 y una API key de Anthropic.
 
 ```bash
-# 1. Configuración
-cp .env.example .env
-#    edita .env y pon tu key en ANTHROPIC_API_KEY=sk-ant-...
-
-# 2. PostgreSQL (con pgvector) y MongoDB
-docker compose up -d
-
-# 3. Backend: dependencias, migraciones, agenda de 14 días e indexación de documentos
-cd backend
-npm ci
-npm run seed        # la primera vez descarga multilingual-e5-small (~118 MB)
-
-# 4. En tres terminales
-npm run api         # http://localhost:3000
-npm run trabajador  # consume la cola y llama al LLM
-cd ../frontend && npm ci && npm run dev   # http://localhost:5173
+cp .env.example .env        # y pon tu key en ANTHROPIC_API_KEY=sk-ant-...
+docker compose up --build
 ```
 
-La interfaz tiene tres vistas: **bandeja** con filtro por estado, **detalle** de
-cada conversación con las herramientas y el costo de cada respuesta, y
-**simulador** de paciente.
+- **Interfaz:** http://localhost:8080. Tiene tres vistas: **bandeja** con filtro
+  por estado, **detalle** de cada conversación con las herramientas y el costo
+  de cada respuesta, y **simulador** de paciente.
+- **API:** http://localhost:3000.
+
+Qué levanta, en orden:
+
+| Servicio | Qué hace |
+|---|---|
+| `postgres`, `mongo` | Bases de datos, con chequeo de salud |
+| `preparar` | Migraciones, agenda de 14 días e indexación de documentos; termina y sale (idempotente) |
+| `api` | Webhook y lectura; espera a que `preparar` termine bien |
+| `trabajador` | Consume la cola y llama a Claude; sin `ANTHROPIC_API_KEY` falla con un mensaje claro |
+| `web` | Frontend compilado servido por nginx, con `/api` hacia la API |
+
+La primera construcción tarda unos minutos: instala dependencias y deja el modelo
+de embeddings (~118 MB) **dentro de la imagen**, así el arranque no depende de la
+red. Las URLs de las bases del `.env` apuntan a `localhost` para el modo
+desarrollo; dentro de compose se reemplazan por los nombres de servicio.
+
+Para detener: `docker compose down`. Para empezar de cero, borrando los datos:
+`docker compose down -v`.
+
+## Modo desarrollo (sin contenedores para la aplicación)
+
+Requiere Node.js 20 o superior, además de Docker para las bases.
+
+```bash
+docker compose up -d postgres mongo
+cd backend && npm ci && npm run seed   # la primera vez descarga multilingual-e5-small (~118 MB)
+npm run api                            # terminal 1 · http://localhost:3000
+npm run trabajador                     # terminal 2
+cd ../frontend && npm ci && npm run dev  # terminal 3 · http://localhost:5173
+```
 
 ### Configurar la API key
 
@@ -57,11 +71,13 @@ valores por defecto razonables:
 ### Reproducir el ejemplo del enunciado
 
 El seed genera 14 días de agenda desde hoy. El ejemplo del enunciado llega el
-`2026-10-06T03:40:00Z`; si evalúas después de esa fecha, siembra esa semana
-(es idempotente y solo agrega los días que faltan):
+`2026-10-06T03:40:00Z`; si evalúas después de esa fecha, pon `SEED_DESDE=2026-10-05`
+en `.env` y vuelve a correr la preparación. Es idempotente y solo agrega los días
+que faltan:
 
 ```bash
-cd backend && SEED_DESDE=2026-10-05 npm run seed
+docker compose up preparar                       # con Docker
+cd backend && SEED_DESDE=2026-10-05 npm run seed   # en modo desarrollo
 ```
 
 ## Endpoints
@@ -79,8 +95,8 @@ también es un 400.
 
 ## Mensajes de ejemplo: casos borde
 
-Con la API y el trabajador corriendo. Cada respuesta se ve en
-`GET /conversaciones/<conversacion_id>` o en la interfaz.
+Con el sistema corriendo (`docker compose up` o el modo desarrollo). Cada
+respuesta se ve en `GET /conversaciones/<conversacion_id>` o en la interfaz.
 
 ```bash
 enviar() { curl -s -X POST localhost:3000/webhooks/messages -H 'content-type: application/json' -d "$1"; echo; }
@@ -167,8 +183,10 @@ NOTAS_IA.md             qué entregó mal la IA y cómo se corrigió
 
 ## Problemas comunes
 
-- **Puerto 5432 o 27017 ocupado:** otro PostgreSQL o MongoDB local. Detenlo, o
-  cambia los puertos en `docker-compose.yml` y en `.env`.
+- **Puerto 5432, 27017, 3000 u 8080 ocupado:** otro servicio local lo está
+  usando. Detenlo, o cambia el puerto de la izquierda en `docker-compose.yml`
+  (y en `.env` si es una base de datos).
+- **Con Colima en macOS:** `colima start` antes de `docker compose`.
 - **El trabajador no arranca:** falta `ANTHROPIC_API_KEY` en `.env`; el error lo
   dice.
 - **"No hay horarios libres" en el ejemplo del enunciado:** la agenda no cubre el

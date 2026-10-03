@@ -77,6 +77,8 @@ const EsperaTurno = z
     respuesta_no_contiene: z.array(z.string()).optional(),
     // Sobre el prompt de sistema que recibió el LLM (fecha y hora de Colombia, sedes válidas).
     prompt_contiene: z.array(z.string()).optional(),
+    // Acciones de la barandilla de datos, en orden (D-26).
+    controles: z.array(z.enum(['corregir', 'descartar'])).optional(),
   })
   .strict();
 

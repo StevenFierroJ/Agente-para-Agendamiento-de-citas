@@ -23,6 +23,9 @@ export const SITUACIONES = [
   'escalamiento_por_modelo',
   'serie_por_conversacion',       // dos mensajes del mismo teléfono a la vez: uno tras otro, en orden
   'concurrencia_mismo_horario',   // dos pacientes, el mismo horario, a la vez: una cita
+  // Barandilla de datos (D-26)
+  'dato_sin_respaldo_corregido',  // el modelo cita un dato que no está en la evidencia y lo corrige
+  'dato_sin_respaldo_descartado', // insiste: se descarta su respuesta, mensaje fijo y escala
   // Hora de Colombia
   'zona_horaria',
   // Caminos felices (para que el goldset también diga que lo normal funciona)

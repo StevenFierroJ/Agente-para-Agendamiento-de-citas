@@ -141,7 +141,8 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 
 - Partición: por sección de encabezado Markdown. Documentos cortos, un fragmento por sección.
 - `multilingual-e5-small` exige prefijos: `passage: ` al indexar y `query: ` al consultar.
-- `RAG_UMBRAL` se calibra contra el seed con preguntas que sí y que no tienen respuesta; el valor y cómo se midió van a `DECISIONS.md`.
+- `RAG_UMBRAL` = 0,837, calibrado con `npm run harness:rag` (Recall@k, MRR, AUC-ROC, barrido de umbrales) sobre `harness/rag/preguntas.json` (D-25). Una variable de entorno vacía toma el valor por defecto.
+- Barandilla de datos (D-26): todo número de la respuesta final debe estar en la evidencia del turno; si no, una corrección y luego mensaje fijo y escalamiento. `npm run harness:rag-e2e` mide exactitud, abstención e invención con Haiku real y un juez Sonnet.
 - Motivo de la elección del modelo, para `DECISIONS.md`: 384 dimensiones bastan para un corpus de 6 a 10 documentos cortos, y el modelo ocupa menos disco y memoria que BGE-M3. Confirmar los tamaños en la ficha de cada modelo antes de escribir cifras.
 
 ## API

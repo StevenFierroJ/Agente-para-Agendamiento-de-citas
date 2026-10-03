@@ -14,7 +14,9 @@ export type MensajeLlm =
   // El mensaje del asistente que pidió herramientas se reenvía tal como llegó:
   // el proveedor puede incluir campos que necesita de vuelta.
   | { rol: 'asistente_con_llamadas'; crudo: unknown }
-  | { rol: 'herramienta'; llamadaId: string; contenido: string; esError: boolean };
+  | { rol: 'herramienta'; llamadaId: string; contenido: string; esError: boolean }
+  // Una instrucción del código al modelo dentro del turno (p. ej. la corrección por datos sin respaldo).
+  | { rol: 'control'; contenido: string };
 
 export interface DefinicionHerramienta {
   nombre: string;
@@ -94,6 +96,19 @@ export interface EmbeddingClient {
   embeberPasajes(textos: readonly string[]): Promise<number[][]>;
 }
 
+export interface FragmentoEncontrado {
+  titulo: string;
+  seccion: string;
+  texto: string;
+  /** Similitud coseno con la consulta (vectores normalizados). */
+  similitud: number;
+}
+
+/** PostgreSQL + pgvector: los fragmentos de los documentos de la clínica. */
+export interface BaseConocimiento {
+  buscar(vector: readonly number[], limite: number): Promise<FragmentoEncontrado[]>;
+}
+
 // ---------------------------------------------------------------------------
 // Persistencia. Las implementaciones viven en infraestructura/.
 // ---------------------------------------------------------------------------
@@ -158,6 +173,7 @@ export interface RegistroTurno {
   iteraciones: number;
   llamadas_llm: { intento: number; latencia_ms: number; tokens_entrada: number; tokens_salida: number; error: string | null }[];
   herramientas: { nombre: string; argumentos: unknown; resultado: unknown; error: string | null; duracion_ms: number }[];
+  controles: { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }[];
   estado_final: EstadoFinalTurno;
   error: string | null;
 }

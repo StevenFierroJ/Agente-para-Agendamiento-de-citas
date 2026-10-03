@@ -1,0 +1,2 @@
+snapshot,sello,modelo,particion,k,n_con_respuesta,n_sin_respuesta,recall_at_1,recall_at_k,mrr_at_k,auc_roc,umbral_youden,recall_youden,fp_youden,umbral_sin_fp,recall_sin_fp
+2026-10-03,20261003-153230,Xenova/multilingual-e5-small,seccion-h2+titulo,4,24,16,0.958,1.000,0.972,0.885,0.837,0.917,4,0.888,0.583

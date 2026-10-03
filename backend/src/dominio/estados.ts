@@ -7,6 +7,8 @@ export interface HechosDelTurno {
   escaloElModelo: boolean;
   agotoIteraciones: boolean;
   fallaDelLlm: boolean;
+  /** La respuesta final tenía datos sin respaldo aun después de la corrección (D-26). */
+  datoSinRespaldo: boolean;
 }
 
 /**
@@ -15,7 +17,7 @@ export interface HechosDelTurno {
  * hay algo que un humano tiene que mirar.
  */
 export function estadoFinalDelTurno(hechos: HechosDelTurno): EstadoFinalTurno {
-  if (hechos.escaloElModelo || hechos.agotoIteraciones || hechos.fallaDelLlm) return 'escalada';
+  if (hechos.escaloElModelo || hechos.agotoIteraciones || hechos.fallaDelLlm || hechos.datoSinRespaldo) return 'escalada';
   if (hechos.agendoCita) return 'cita_agendada';
   return 'resuelta_por_ia';
 }

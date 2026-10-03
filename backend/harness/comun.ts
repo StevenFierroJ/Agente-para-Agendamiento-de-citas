@@ -4,6 +4,8 @@ import pg from 'pg';
 import { MongoClient } from 'mongodb';
 import { ZONA_COLOMBIA } from '../src/dominio/fechas.js';
 import { migrar } from '../src/infraestructura/postgres/migrar.js';
+import type { EmbeddingClient } from '../src/aplicacion/puertos.js';
+import { sembrarDocumentos } from '../seed/documentos.js';
 import { sembrarAgenda } from '../seed/seed.js';
 
 export const URL_POSTGRES_HARNESS = process.env['HARNESS_DATABASE_URL'] ?? 'postgres://agenda:agenda@localhost:5432/agenda_harness';
@@ -16,14 +18,15 @@ export function verificarBasesDelHarness(): void {
   }
 }
 
-/** Esquema desde cero, cola vacía, agenda sembrada desde `seedDesde`, MongoDB vacío. */
-export async function prepararBasesDelHarness(seedDesde: string): Promise<void> {
+/** Esquema desde cero, cola vacía, agenda sembrada desde `seedDesde` (y documentos si se pasan embeddings), MongoDB vacío. */
+export async function prepararBasesDelHarness(seedDesde: string, embeddings?: EmbeddingClient): Promise<void> {
   verificarBasesDelHarness();
   const pool = new pg.Pool({ connectionString: URL_POSTGRES_HARNESS });
   try {
     await pool.query('DROP SCHEMA IF EXISTS pgboss CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
     await migrar(pool);
     await sembrarAgenda(pool, seedDesde);
+    if (embeddings) await sembrarDocumentos(pool, embeddings);
   } finally {
     await pool.end();
   }

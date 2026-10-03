@@ -22,6 +22,7 @@ import { DateTime } from 'luxon';
 import pg from 'pg';
 import { crearHerramientas } from '../../src/aplicacion/herramientas/registro.js';
 import type { PedidoLlm } from '../../src/aplicacion/puertos.js';
+import { EmbeddingFalso } from '../../src/infraestructura/embeddings/falso.js';
 import { LlmGuionado, type RespuestaGuionada } from '../../src/infraestructura/llm/falso.js';
 import { registroSilencioso } from '../../src/infraestructura/registro.js';
 import { levantarSistema } from '../../src/sistema.js';
@@ -87,7 +88,9 @@ async function main(): Promise<number> {
     cola: { reintentos: 3 },
     trabajador: {
       llm,
-      crearHerramientas: ({ agenda, mensajes }) => crearHerramientas({ agenda, catalogo: mensajes }),
+      // Los mensajes de carga no usan el RAG: embeddings falsos, sin descargar el modelo.
+      crearHerramientas: ({ agenda, mensajes, conocimiento }) =>
+        crearHerramientas({ agenda, catalogo: mensajes, conocimiento: { embeddings: new EmbeddingFalso(), base: conocimiento, umbral: 0.5 } }),
       timeoutMs: config.latenciaMax + 2_000,
       maxIteraciones: 5,
       precios: { entrada: 1, salida: 5 },

@@ -3,7 +3,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { crearHerramientas } from '../src/aplicacion/herramientas/registro.js';
 import type { ContextoHerramienta, Herramienta, ResultadoHerramienta } from '../src/aplicacion/puertos.js';
 import { ahoraDelMensaje } from '../src/dominio/fechas.js';
+import { EmbeddingFalso } from '../src/infraestructura/embeddings/falso.js';
 import { AgendaPostgres } from '../src/infraestructura/postgres/agenda.js';
+import { ConocimientoPostgres } from '../src/infraestructura/postgres/conocimiento.js';
+import { sembrarDocumentos } from '../seed/documentos.js';
 import { RepositorioMensajesPostgres } from '../src/infraestructura/postgres/mensajes.js';
 import { urlPostgresDeTest } from './ayudas/postgres.js';
 import { prepararBasesDeTest } from './ayudas/sistema.js';
@@ -20,7 +23,12 @@ describe('herramientas', () => {
   beforeAll(async () => {
     await prepararBasesDeTest();
     pool = new pg.Pool({ connectionString: urlPostgresDeTest(), max: 30 });
-    herramientas = crearHerramientas({ agenda: new AgendaPostgres(pool), catalogo: new RepositorioMensajesPostgres(pool) });
+    await sembrarDocumentos(pool, new EmbeddingFalso());
+    herramientas = crearHerramientas({
+      agenda: new AgendaPostgres(pool),
+      catalogo: new RepositorioMensajesPostgres(pool),
+      conocimiento: { embeddings: new EmbeddingFalso(), base: new ConocimientoPostgres(pool), umbral: 0.25 },
+    });
   });
   afterAll(async () => {
     await pool.end();
@@ -225,6 +233,26 @@ describe('herramientas', () => {
       );
       expect(resultados.filter((r) => r.ok)).toHaveLength(1);
       expect(resultados.filter((r) => error(r) === 'horario_ocupado')).toHaveLength(9);
+    });
+  });
+
+  describe('buscar_conocimiento (embeddings falsos: bolsa de palabras)', () => {
+    it('devuelve los fragmentos que superan el umbral, con documento y sección', async () => {
+      const r = await ejecutar('buscar_conocimiento', { pregunta: '¿Cuál es el horario de atención de la Sede Norte?' });
+      expect(r.ok).toBe(true);
+      const fragmentos = (r as { datos: { fragmentos: { documento: string; seccion: string; similitud: number }[] } }).datos.fragmentos;
+      expect(fragmentos[0]).toMatchObject({ documento: 'Horarios de atención', seccion: 'Sede Norte' });
+      expect(fragmentos.length).toBeLessThanOrEqual(4);
+      expect(fragmentos.every((f) => f.similitud >= 0.25)).toBe(true);
+    });
+
+    it('sin fragmentos sobre el umbral: sin_resultados, sin texto del que inventar', async () => {
+      const r = await ejecutar('buscar_conocimiento', { pregunta: 'zzz qqq xyzw' });
+      expect(r).toMatchObject({ ok: false, error: 'sin_resultados' });
+    });
+
+    it.each([[{ pregunta: 'ok' }], [{}], [{ pregunta: 'horarios', k: 10 }]])('rechaza %j', async (argumentos) => {
+      expect(error(await ejecutar('buscar_conocimiento', argumentos))).toBe('argumentos_invalidos');
     });
   });
 

@@ -1,7 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { migrar } from '../src/infraestructura/postgres/migrar.js';
+import { EmbeddingE5 } from '../src/infraestructura/embeddings/e5.js';
 import { ESPECIALIDADES, PROFESIONALES, SEDES, generarBloques, resolverPrimerDia } from './agenda.js';
+import { sembrarDocumentos } from './documentos.js';
 
 export interface ResumenSeed {
   primerDia: string;
@@ -69,6 +71,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await migrar(pool);
     const resumen = await sembrarAgenda(pool, process.env['SEED_DESDE']);
     console.log(`Agenda desde ${resumen.primerDia}: ${resumen.horariosNuevos} horarios nuevos`);
+    console.log('Indexando documentos (la primera vez descarga el modelo de embeddings, ~118 MB)…');
+    const docs = await sembrarDocumentos(pool, new EmbeddingE5());
+    console.log(`Documentos: ${docs.indexados.length} indexados, ${docs.sinCambios.length} sin cambios, ${docs.eliminados} eliminados`);
   } finally {
     await pool.end();
   }

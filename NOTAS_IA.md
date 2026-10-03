@@ -75,3 +75,19 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
   socket y no hubo un solo reintento. Se agregó al harness la métrica de trabajos
   reintentados. Lección: un "sin violaciones" vale si el caos efectivamente
   ocurrió.
+
+## Paso 6
+
+- **Variable vacía = umbral 0.** La IA definió `RAG_UMBRAL` con `z.coerce.number`,
+  y con `RAG_UMBRAL=` vacío en el `.env` el umbral efectivo era 0: todo pasaba el
+  filtro. Ningún test lo vio; lo encontró el goldset cuando una pregunta sobre
+  vacunas (similitud 0,78) devolvió fragmentos. Ahora una variable vacía toma el
+  valor por defecto, y hay un test que lo cubre.
+- **Un juez que se contradice.** En la evaluación de punta a punta, el juez
+  (Sonnet, esfuerzo bajo) escribió "el veredicto correcto sería 'correcta'" y
+  marcó `inventa`. Se agregó una regla de consistencia y se subió el esfuerzo. Un
+  número que viene de un juez LLM se audita leyendo los casos, no se acepta
+  porque sí.
+- **El umbral solo no resuelve el dominio cercano.** La primera intuición era que
+  un umbral bien calibrado bastaba. Las métricas mostraron que no hay umbral que
+  separe "el tema está pero el dato no". De ahí salieron las tres capas de D-26.

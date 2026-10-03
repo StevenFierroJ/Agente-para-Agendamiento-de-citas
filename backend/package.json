@@ -14,10 +14,13 @@
     "harness:gold": "tsx --env-file-if-exists=../.env harness/gold/correr.ts",
     "api": "tsx --env-file-if-exists=../.env src/api.ts",
     "trabajador": "tsx --env-file-if-exists=../.env src/trabajador.ts",
-    "harness:carga": "tsx --env-file-if-exists=../.env harness/carga/correr.ts"
+    "harness:carga": "tsx --env-file-if-exists=../.env harness/carga/correr.ts",
+    "harness:rag": "tsx --env-file-if-exists=../.env harness/rag/evaluar.ts",
+    "harness:rag-e2e": "tsx --env-file-if-exists=../.env harness/rag/e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
+    "@huggingface/transformers": "^4.3.0",
     "fastify": "^5.12.5",
     "luxon": "^3.7.2",
     "mongodb": "^7.7.0",

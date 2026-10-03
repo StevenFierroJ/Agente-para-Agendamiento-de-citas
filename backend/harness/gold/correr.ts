@@ -18,6 +18,7 @@ import { leerConfig, preciosLlm } from '../../src/config.js';
 import { crearHerramientas } from '../../src/aplicacion/herramientas/registro.js';
 import type { LlmClient } from '../../src/aplicacion/puertos.js';
 import { COLA_MENSAJES } from '../../src/infraestructura/cola/cola.js';
+import { EmbeddingE5 } from '../../src/infraestructura/embeddings/e5.js';
 import { crearLlmReal } from '../../src/infraestructura/llm/crear.js';
 import { LlmGuionado, type PedidoRegistrado, type RespuestaGuionada } from '../../src/infraestructura/llm/falso.js';
 import type { DocMensaje, DocTurno } from '../../src/infraestructura/mongo/mongo.js';
@@ -72,7 +73,9 @@ async function main(): Promise<number> {
   const sinValidar = casos.filter((c) => !c.validado_por).length;
   if (sinValidar) console.log(`  ${sinValidar} caso(s) sin revisión externa (validado_por: null)`);
 
-  await prepararBasesDelHarness(SEED_DESDE_HARNESS);
+  // Todo real salvo el LLM (en modo guion): también los embeddings y el umbral calibrado.
+  const embeddings = new EmbeddingE5();
+  await prepararBasesDelHarness(SEED_DESDE_HARNESS, embeddings);
   const sistema = await levantarSistema({
     databaseUrl: URL_POSTGRES_HARNESS,
     mongoUrl: URL_MONGO_HARNESS,
@@ -80,7 +83,8 @@ async function main(): Promise<number> {
     cola: { reintentos: 3 },
     trabajador: {
       llm,
-      crearHerramientas: ({ agenda, mensajes }) => crearHerramientas({ agenda, catalogo: mensajes }),
+      crearHerramientas: ({ agenda, mensajes, conocimiento }) =>
+        crearHerramientas({ agenda, catalogo: mensajes, conocimiento: { embeddings, base: conocimiento, umbral: config.RAG_UMBRAL } }),
       timeoutMs: modo === 'guion' ? 2_000 : config.LLM_TIMEOUT_MS,
       maxIteraciones: config.LLM_MAX_ITERACIONES,
       precios: preciosLlm(config),
@@ -113,7 +117,7 @@ async function main(): Promise<number> {
         config: {
           modelo: modo === 'real' ? config.LLM_MODEL ?? null : 'falso-guionado',
           precios: preciosLlm(config),
-          rag_umbral: config.RAG_UMBRAL ?? null,
+          rag_umbral: config.RAG_UMBRAL,
           max_iteraciones: config.LLM_MAX_ITERACIONES,
           seed_desde: SEED_DESDE_HARNESS,
         },
@@ -335,6 +339,12 @@ function evaluarGuion(
   const estados = comoLista(espera.estado_final);
   if (!estados.includes(turno.estado_final)) fallas.push(`${id}: estado ${turno.estado_final}, se esperaba ${estados.join(' o ')}`);
   fallas.push(...revisarTexto(id, respuesta.texto, espera.respuesta_contiene, espera.respuesta_no_contiene));
+  if (espera.controles) {
+    const obtenidos = (turno.controles ?? []).map((c) => c.accion);
+    if (JSON.stringify(obtenidos) !== JSON.stringify(espera.controles)) {
+      fallas.push(`${id}: controles [${obtenidos.join(', ')}], se esperaba [${espera.controles.join(', ')}]`);
+    }
+  }
 
   if (espera.prompt_contiene) {
     const sistemaPrompt = pedidos.find((p) => p.etiqueta === id)?.mensajes.find((m) => m.rol === 'sistema');

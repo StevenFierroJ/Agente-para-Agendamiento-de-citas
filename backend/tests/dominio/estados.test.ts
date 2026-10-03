@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { estadoFinalDelTurno, siguienteEstadoConversacion } from '../../src/dominio/estados.js';
 
-const NADA = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false };
+const NADA = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false, datoSinRespaldo: false };
 
 describe('estado final del turno', () => {
   it('respuesta sin más → resuelta_por_ia', () => {
@@ -12,7 +12,7 @@ describe('estado final del turno', () => {
     expect(estadoFinalDelTurno({ ...NADA, agendoCita: true })).toBe('cita_agendada');
   });
 
-  it.each([['escaloElModelo'], ['agotoIteraciones'], ['fallaDelLlm']] as const)('%s → escalada', (hecho) => {
+  it.each([['escaloElModelo'], ['agotoIteraciones'], ['fallaDelLlm'], ['datoSinRespaldo']] as const)('%s → escalada', (hecho) => {
     expect(estadoFinalDelTurno({ ...NADA, [hecho]: true })).toBe('escalada');
   });
 

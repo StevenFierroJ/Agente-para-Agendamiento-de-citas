@@ -8,7 +8,7 @@ sistema armado.
 | | Goldset (`gold/`) | Volumen (`carga/`) |
 |---|---|---|
 | Pregunta | ¿cada excepción se maneja como se decidió? | ¿las invariantes aguantan con concurrencia y duplicados? |
-| Entrada | 26 conversaciones (25 guionadas y 1 solo para el modelo real) | mensajes generados con semilla |
+| Entrada | 28 conversaciones (27 guionadas y 1 solo para el modelo real) | mensajes generados con semilla |
 | LLM | falso guionado (`guion`) o real (`real`) | falso, con latencia simulada |
 | Falla si | un turno o el estado final no coincide | se viola cualquier invariante |
 
@@ -64,6 +64,25 @@ lunes 5 de octubre de 2026 (`SEED_DESDE_HARNESS`).
   (entrada y salida) en MongoDB.
 - Un mensaje rechazado (400) no dejó conversación, ni fila en
   `mensajes_entrantes`, ni trabajo en la cola.
+
+## RAG
+
+```bash
+npm run harness:rag        # recuperación y calibración del umbral (no gasta)
+npm run harness:rag-e2e    # punta a punta con Haiku real y juez Sonnet (gasta, ~USD 0,45)
+```
+
+Goldset en `rag/preguntas.json`: preguntas con respuesta (documento esperado y
+dato de referencia) y sin respuesta (dominio cercano o fuera de dominio).
+
+- **Recuperación:** Recall@1, Recall@k y MRR@k. **Abstención:** AUC-ROC, y un
+  barrido de umbrales con recall, falsos positivos por tipo, precisión y F1.
+  Una fila por corrida en `rag/METRICAS_RAG.csv`.
+- **Punta a punta:** el juez clasifica cada respuesta como correcta, abstiene,
+  inventa o incorrecta, y de ahí salen exactitud, abstención indebida y
+  correcta, e invención (por tipo). Una fila por corrida en
+  `rag/METRICAS_RAG_E2E.csv`. El costo del juez se informa aparte: no es costo
+  de producción.
 
 ## Volumen
 

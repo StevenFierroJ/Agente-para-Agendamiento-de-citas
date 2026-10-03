@@ -1,7 +1,8 @@
 import type { DateTime } from 'luxon';
 import { estadoFinalDelTurno, type EstadoFinalTurno } from '../dominio/estados.js';
+import { datosSinRespaldo } from '../dominio/respaldo.js';
 import type { EstadoConversacion } from '../dominio/errores.js';
-import { MENSAJE_CONVERSACION_ESCALADA, MENSAJE_FALLA_TECNICA, MENSAJE_TOPE_ITERACIONES } from './mensajes-fijos.js';
+import { MENSAJE_CONVERSACION_ESCALADA, MENSAJE_FALLA_TECNICA, MENSAJE_SIN_RESPALDO, MENSAJE_TOPE_ITERACIONES } from './mensajes-fijos.js';
 import type { DefinicionHerramienta, Herramienta, LlamadaHerramienta, LlmClient, MensajeLlm, ResultadoHerramienta, RespuestaLlm } from './puertos.js';
 
 export interface TrazaHerramientaTurno {
@@ -30,6 +31,7 @@ export interface ResultadoTurno {
   iteraciones: number;
   llamadasLlm: TrazaLlamadaLlmTurno[];
   herramientas: TrazaHerramientaTurno[];
+  controles: { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }[];
   /** Por qué el turno terminó escalado por el código (falla del LLM, tope); null si no. */
   error: string | null;
 }
@@ -74,6 +76,7 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
     iteraciones: 0,
     llamadasLlm: [],
     herramientas: [],
+    controles: [],
     error: null,
   };
 
@@ -83,7 +86,10 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
 
   const definiciones = [...deps.herramientas.values()].map((h) => h.definicion);
   const mensajes: MensajeLlm[] = [{ rol: 'sistema', contenido: entrada.promptSistema }, ...entrada.historial];
-  const hechos = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false };
+  const hechos = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false, datoSinRespaldo: false };
+  // Evidencia del turno para la barandilla de datos (D-26): lo que el modelo puede
+  // citar. Sus propios argumentos no cuentan: podrían ser inventados.
+  const evidencias: string[] = [entrada.promptSistema, ...entrada.historial.flatMap((m) => ('contenido' in m ? [m.contenido] : []))];
 
   while (resultado.iteraciones < deps.maxIteraciones) {
     resultado.iteraciones++;
@@ -105,9 +111,29 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
         hechos.fallaDelLlm = true;
         resultado.error = 'respuesta_vacia: el modelo no devolvió texto ni herramientas';
         resultado.respuesta = MENSAJE_FALLA_TECNICA;
-      } else {
-        resultado.respuesta = texto;
+        resultado.estadoFinal = estadoFinalDelTurno(hechos);
+        return resultado;
       }
+
+      // Barandilla: todo dato verificable de la respuesta tiene que estar en la evidencia.
+      const sinRespaldo = datosSinRespaldo(texto, evidencias);
+      if (sinRespaldo.length > 0) {
+        const yaCorregido = resultado.controles.length > 0;
+        if (!yaCorregido && resultado.iteraciones < deps.maxIteraciones) {
+          resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'corregir' });
+          mensajes.push({ rol: 'asistente', contenido: texto });
+          mensajes.push({ rol: 'control', contenido: mensajeDeCorreccion(sinRespaldo) });
+          continue;
+        }
+        resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'descartar' });
+        hechos.datoSinRespaldo = true;
+        resultado.error = `datos_sin_respaldo: ${sinRespaldo.join(', ')}`;
+        resultado.respuesta = MENSAJE_SIN_RESPALDO;
+        resultado.estadoFinal = estadoFinalDelTurno(hechos);
+        return resultado;
+      }
+
+      resultado.respuesta = texto;
       resultado.estadoFinal = estadoFinalDelTurno(hechos);
       return resultado;
     }
@@ -126,6 +152,7 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
       if (salida.ok && llamada.nombre === HERRAMIENTA_AGENDAR) hechos.agendoCita = true;
       if (salida.ok && llamada.nombre === HERRAMIENTA_ESCALAR) hechos.escaloElModelo = true;
       mensajes.push({ rol: 'herramienta', llamadaId: llamada.id, contenido: JSON.stringify(salida), esError: !salida.ok });
+      evidencias.push(JSON.stringify(salida, (clave, valor: unknown) => (clave === 'similitud' ? undefined : valor)));
     }
   }
 
@@ -207,6 +234,13 @@ async function ejecutarHerramienta(
   }
   const salida = await herramienta.ejecutar(argumentos, { conversacionId: entrada.conversacionId, ahora: entrada.ahora });
   return { argumentos, salida };
+}
+
+function mensajeDeCorreccion(datos: readonly string[]): string {
+  return [
+    `Control automático: tu respuesta incluye datos que no aparecen en los resultados de las herramientas ni en la conversación: ${datos.join(', ')}.`,
+    'Reescríbela usando solo datos que devolvieron las herramientas. Si no tienes el dato, dilo y ofrece comunicar al paciente con un asesor.',
+  ].join(' ');
 }
 
 function describir(error: unknown): string {

@@ -8,7 +8,8 @@ import { iniciarCola, type OpcionesCola } from './infraestructura/cola/cola.js';
 import { AlmacenMongo, conectarMongo, type Mongo } from './infraestructura/mongo/mongo.js';
 import { AgendaPostgres } from './infraestructura/postgres/agenda.js';
 import { RepositorioMensajesPostgres } from './infraestructura/postgres/mensajes.js';
-import type { Agenda, RepositorioMensajes } from './aplicacion/puertos.js';
+import type { Agenda, BaseConocimiento, RepositorioMensajes } from './aplicacion/puertos.js';
+import { ConocimientoPostgres } from './infraestructura/postgres/conocimiento.js';
 import type { Registro } from './infraestructura/registro.js';
 
 export interface OpcionesSistema {
@@ -19,7 +20,7 @@ export interface OpcionesSistema {
   trabajador?: {
     llm: LlmClient;
     /** Recibe la agenda del sistema: las herramientas consultan la misma base. */
-    crearHerramientas: (dependencias: { agenda: Agenda; mensajes: RepositorioMensajes; pool: pg.Pool }) => ReadonlyMap<string, Herramienta>;
+    crearHerramientas: (dependencias: { agenda: Agenda; mensajes: RepositorioMensajes; conocimiento: BaseConocimiento }) => ReadonlyMap<string, Herramienta>;
     timeoutMs: number;
     maxIteraciones: number;
     precios: { entrada: number; salida: number } | null;
@@ -53,7 +54,11 @@ export async function levantarSistema(opciones: OpcionesSistema): Promise<Sistem
         boss,
         {
           llm: opciones.trabajador.llm,
-          herramientas: opciones.trabajador.crearHerramientas({ agenda: new AgendaPostgres(pool), mensajes: new RepositorioMensajesPostgres(pool), pool }),
+          herramientas: opciones.trabajador.crearHerramientas({
+            agenda: new AgendaPostgres(pool),
+            mensajes: new RepositorioMensajesPostgres(pool),
+            conocimiento: new ConocimientoPostgres(pool),
+          }),
           timeoutMs: opciones.trabajador.timeoutMs,
           maxIteraciones: opciones.trabajador.maxIteraciones,
           precios: opciones.trabajador.precios,

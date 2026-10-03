@@ -1,0 +1,191 @@
+{
+  "_nota": "Calibración de RAG_UMBRAL. 'con_respuesta': el documento esperado tiene la respuesta. 'sin_respuesta': ningún documento la tiene; varias son del mismo dominio a propósito (precios, teléfono, servicios que no se ofrecen) para que sean difíciles. 'dato': el hecho que debe aparecer en la respuesta (lo usa la evaluación de punta a punta). 'tipo': dominio_cercano = el tema está en los documentos pero el dato no; fuera_de_dominio = nada relacionado.",
+  "con_respuesta": [
+    {
+      "pregunta": "¿A qué hora abren en la sede norte?",
+      "documento": "01-horarios-de-atencion.md",
+      "dato": "7:00 a. m."
+    },
+    {
+      "pregunta": "¿Atienden los sábados?",
+      "documento": "01-horarios-de-atencion.md",
+      "dato": "cerradas los sábados"
+    },
+    {
+      "pregunta": "¿Tienen servicio de urgencias?",
+      "documento": "01-horarios-de-atencion.md",
+      "dato": "no hay servicio de urgencias"
+    },
+    {
+      "pregunta": "¿Qué días hay dermatología en la sede sur?",
+      "documento": "01-horarios-de-atencion.md",
+      "dato": "martes y jueves"
+    },
+    {
+      "pregunta": "¿Dónde queda la sede sur?",
+      "documento": "02-sedes.md",
+      "dato": "Calle 16 # 100-25"
+    },
+    {
+      "pregunta": "¿Hay parqueadero en la sede norte?",
+      "documento": "02-sedes.md",
+      "dato": "parqueadero propio gratuito"
+    },
+    {
+      "pregunta": "¿La clínica tiene rampa para silla de ruedas?",
+      "documento": "02-sedes.md",
+      "dato": "rampa de acceso"
+    },
+    {
+      "pregunta": "¿Qué ruta del MIO me deja cerca?",
+      "documento": "02-sedes.md",
+      "dato": "Torre de Cali / A11 / P47"
+    },
+    {
+      "pregunta": "¿Qué especialidades tienen?",
+      "documento": "03-especialidades-y-servicios.md",
+      "dato": "medicina general, dermatología y pediatría"
+    },
+    {
+      "pregunta": "¿Tienen ginecología?",
+      "documento": "03-especialidades-y-servicios.md",
+      "dato": "no ofrece ginecología"
+    },
+    {
+      "pregunta": "¿Cuánto dura una consulta?",
+      "documento": "03-especialidades-y-servicios.md",
+      "dato": "30 minutos"
+    },
+    {
+      "pregunta": "¿Hasta qué edad atiende el pediatra?",
+      "documento": "03-especialidades-y-servicios.md",
+      "dato": "17 años"
+    },
+    {
+      "pregunta": "¿El dermatólogo hace procedimientos estéticos?",
+      "documento": "03-especialidades-y-servicios.md",
+      "dato": "no se realizan"
+    },
+    {
+      "pregunta": "¿Tengo que ir en ayunas para el examen de colesterol?",
+      "documento": "04-preparacion-de-examenes.md",
+      "dato": "ayuno de 8 a 12 horas"
+    },
+    {
+      "pregunta": "¿Cómo tomo la muestra de orina?",
+      "documento": "04-preparacion-de-examenes.md",
+      "dato": "primera orina de la mañana, mitad del chorro"
+    },
+    {
+      "pregunta": "¿Qué preparación necesita la ecografía abdominal?",
+      "documento": "04-preparacion-de-examenes.md",
+      "dato": "ayuno de 6 horas"
+    },
+    {
+      "pregunta": "¿A qué hora toman las muestras de laboratorio?",
+      "documento": "04-preparacion-de-examenes.md",
+      "dato": "7:00 a 10:00 a. m. en la Sede Norte"
+    },
+    {
+      "pregunta": "¿Cómo cancelo mi cita?",
+      "documento": "05-politica-de-cancelacion.md",
+      "dato": "hasta 24 horas antes, con un asesor"
+    },
+    {
+      "pregunta": "¿Qué pasa si no voy a la cita y no aviso?",
+      "documento": "05-politica-de-cancelacion.md",
+      "dato": "queda como inasistencia"
+    },
+    {
+      "pregunta": "Voy a llegar tarde, ¿igual me atienden?",
+      "documento": "05-politica-de-cancelacion.md",
+      "dato": "más de 15 minutos tarde se puede reprogramar"
+    },
+    {
+      "pregunta": "¿Reciben Colsanitas?",
+      "documento": "06-cobertura-y-pagos.md",
+      "dato": "sí, Colsanitas"
+    },
+    {
+      "pregunta": "¿Me atienden por la EPS?",
+      "documento": "06-cobertura-y-pagos.md",
+      "dato": "no hay convenio con EPS; como particular"
+    },
+    {
+      "pregunta": "¿Puedo pagar con tarjeta de crédito?",
+      "documento": "06-cobertura-y-pagos.md",
+      "dato": "sí, tarjeta crédito"
+    },
+    {
+      "pregunta": "¿Qué documentos tengo que llevar a la cita?",
+      "documento": "07-documentos-para-la-cita.md",
+      "dato": "documento de identidad (y carné)"
+    }
+  ],
+  "sin_respuesta": [
+    {
+      "pregunta": "¿Cuánto cuesta un trasplante de corazón?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Cuánto cuesta la consulta de dermatología?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Cuál es el número de teléfono de la clínica?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Tienen vacuna contra la fiebre amarilla?",
+      "tipo": "fuera_de_dominio"
+    },
+    {
+      "pregunta": "¿Hacen cirugías?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Tienen servicio de ambulancia?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Dan certificados de incapacidad?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Hacen pruebas de COVID?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Hay wifi en la sala de espera?",
+      "tipo": "fuera_de_dominio"
+    },
+    {
+      "pregunta": "¿Puedo entrar con mi perro?",
+      "tipo": "fuera_de_dominio"
+    },
+    {
+      "pregunta": "¿Atienden a domicilio?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Hacen terapias de fisioterapia?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Quién es el director de la clínica?",
+      "tipo": "fuera_de_dominio"
+    },
+    {
+      "pregunta": "¿Puedo ver mis resultados en internet?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Hacen radiografías?",
+      "tipo": "dominio_cercano"
+    },
+    {
+      "pregunta": "¿Venden lentes o gafas?",
+      "tipo": "fuera_de_dominio"
+    }
+  ]
+}

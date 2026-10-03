@@ -243,6 +243,79 @@ mensajes de una vez, no un flujo sostenido. Con el LLM real la latencia por
 turno es de 1,4 a 4,4 s (D-20), así que la concurrencia del trabajador debe
 dimensionarse con esa cifra y con los límites de tasa del proveedor.
 
+### D-25 · RAG: modelo, partición, umbral y cómo se midió
+- **Modelo:** `multilingual-e5-small`, local, en proceso (ONNX cuantizado q8).
+  Cifras de las fichas oficiales, consultadas el 2026-10-03:
+
+  | | `multilingual-e5-small` | `bge-m3` |
+  |---|---|---|
+  | Parámetros | 117.654.272 | — |
+  | Capas | 12 | 24 |
+  | Dimensiones | 384 | 1.024 |
+  | Entrada máxima | 512 tokens | 8.192 tokens |
+  | Peso en disco | 118 MB (ONNX q8), 470 MB (fp32) | 2,27 GB |
+
+  Para 7 documentos con secciones de menos de 100 palabras, 384 dimensiones y
+  512 tokens alcanzan. La ficha exige los prefijos `query: ` y `passage: `.
+- **Partición:** una sección `##` es un fragmento; el título y la sección van
+  dentro del texto que se embebe. Son 21 fragmentos.
+- **Búsqueda:** pgvector, distancia coseno, recorrido exacto (D-07), k = 4.
+- **Goldset** (`harness/rag/preguntas.json`): 24 preguntas con respuesta (con
+  documento esperado y dato de referencia) y 16 sin respuesta (11 de dominio
+  cercano, 5 fuera de dominio).
+- **Recuperación** (`npm run harness:rag`): Recall@1 0,958, Recall@4 1,000,
+  MRR@4 0,972.
+- **Umbral 0,837.** La ficha de e5 avisa que las similitudes caen entre 0,7 y
+  1,0, y medido sobre el goldset las dos poblaciones se solapan (AUC-ROC 0,885).
+  Exigir cero falsos positivos deja pasar solo el 58 % de las preguntas con
+  respuesta. Tres criterios (máximo F1, índice de Youden y cero falsos positivos
+  fuera de dominio) coinciden en 0,837: deja pasar el 92 % de las preguntas con
+  respuesta y bloquea todas las de fuera de dominio. Pasan 4 de dominio cercano
+  (el tema está, el dato no); esas las resuelven el prompt y la barandilla
+  (D-26).
+- **Limitaciones, dichas con honestidad:**
+  - el umbral se eligió sobre el mismo goldset que lo mide (no hay datos
+    apartados);
+  - el margen es de 0,001 (la pregunta más alta fuera de dominio dio 0,836);
+  - el modelo reformula la pregunta antes de buscar, así que la similitud real
+    varía. Un caso del goldset lo mostró: "precio de un trasplante de corazón"
+    pasa el umbral y la pregunta original no.
+
+### D-26 · Barandilla contra datos que no están en las fuentes
+Hay tres capas, porque ninguna alcanza sola:
+1. **Umbral** (D-25): filtra lo que está fuera de dominio.
+2. **Prompt:** responder solo con los fragmentos y, si no mencionan algo, ni
+   afirmarlo ni negarlo. La única lista cerrada es la de especialidades.
+3. **Verificación determinista en código** (`dominio/respaldo.ts`):
+   - todo número de la respuesta (hora, precio, teléfono, dirección, fecha)
+     tiene que estar en la evidencia del turno: resultados de herramientas,
+     conversación o prompt de sistema;
+   - se aceptan las equivalencias que el modelo usa al redactar: 14:00 → 2,
+     "06" → 6, "tres" → 3;
+   - los argumentos del propio modelo no cuentan como evidencia;
+   - si hay datos sin respaldo, el modelo recibe la lista y una oportunidad de
+     corregir. Si insiste, se descarta su respuesta, va un mensaje fijo y la
+     conversación escala. Cada control queda en la traza del turno.
+
+**Medido de punta a punta** (`npm run harness:rag-e2e`, Haiku real más un juez
+Sonnet 5.5 que ve el corpus completo):
+
+| | Sin la regla del prompt | Con la regla |
+|---|---|---|
+| Exactitud (con respuesta) | 88 % | 92 % |
+| Abstención correcta (sin respuesta) | 81 % | 94 % |
+| Invención global | 8 % | 3 % |
+
+La invención que queda es un "no hacemos cirugías" deducido de la lista cerrada
+de especialidades: no es una cifra, así que la capa 3 no la ve. Cuesta USD 0,0043
+por pregunta; el juez, que es andamio, va aparte. El juez se contradijo una vez
+(razonó "correcta" y marcó "inventa"); ahora un `inventa` sin datos listados se
+vuelve a juzgar. Es una sola corrida de 40 preguntas: el resultado es una señal,
+no una cifra exacta.
+
+**Pendiente de decisión:** una cuarta capa, un verificador con LLM para
+afirmaciones sin cifras, a costa de una llamada más por respuesta informativa.
+
 ## Secciones pendientes
 
 - Arquitectura general

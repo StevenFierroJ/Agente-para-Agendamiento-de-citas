@@ -122,6 +122,9 @@ export function aMensajesAnthropic(mensajes: readonly MensajeLlm[]): { system: s
         // Tal como llegó: los bloques de la respuesta anterior, sin reconstruir.
         salida.push({ role: 'assistant', content: m.crudo as Anthropic.ContentBlockParam[] });
         break;
+      case 'control':
+        agregar('user', [{ type: 'text', text: m.contenido }]);
+        break;
       case 'herramienta':
         agregar('user', [{ type: 'tool_result', tool_use_id: m.llamadaId, content: m.contenido, is_error: m.esError }]);
         break;

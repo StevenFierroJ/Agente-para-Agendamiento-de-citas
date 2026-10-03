@@ -97,6 +97,7 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     iteraciones: turno.iteraciones,
     llamadas_llm: turno.llamadasLlm,
     herramientas: turno.herramientas,
+    controles: turno.controles,
     estado_final: turno.estadoFinal,
     error: turno.error,
   });

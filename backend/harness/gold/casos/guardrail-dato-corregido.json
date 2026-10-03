@@ -1,0 +1,62 @@
+{
+  "id": "guardrail-dato-corregido",
+  "descripcion": "El paciente pide el teléfono; el fragmento recuperado (sedes) no lo tiene. El modelo inventa un número, la barandilla lo detecta y le pide corregir; el modelo responde que no tiene el dato.",
+  "cubre": [
+    "dato_sin_respaldo_corregido",
+    "respuesta_con_documentos"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.guardrail-tel.1",
+        "from": "+573000000031",
+        "text": "¿Cuál es el número de teléfono de la clínica?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "buscar_conocimiento",
+              "argumentos": {
+                "pregunta": "¿Cuál es el número de teléfono de la clínica?"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Puedes llamar a la clínica al 602 555 1234."
+        },
+        {
+          "tipo": "texto",
+          "texto": "No tengo el número de teléfono de la clínica en mi información. ¿Quieres que un asesor te lo confirme?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "buscar_conocimiento",
+            "error": null
+          }
+        ],
+        "controles": [
+          "corregir"
+        ],
+        "estado_final": "resuelta_por_ia",
+        "respuesta_no_contiene": [
+          "602",
+          "555"
+        ]
+      }
+    }
+  ]
+}

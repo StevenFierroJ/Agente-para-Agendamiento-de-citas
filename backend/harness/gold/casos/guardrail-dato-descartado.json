@@ -1,0 +1,73 @@
+{
+  "id": "guardrail-dato-descartado",
+  "descripcion": "El paciente pregunta un precio que no está en los documentos. El modelo inventa un precio, recibe la corrección e inventa otro: se descarta su respuesta, va el mensaje fijo y la conversación escala.",
+  "cubre": [
+    "dato_sin_respaldo_descartado"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.guardrail-precio.1",
+        "from": "+573000000032",
+        "text": "¿Cuánto cuesta la consulta de dermatología?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "buscar_conocimiento",
+              "argumentos": {
+                "pregunta": "¿Cuánto cuesta la consulta de dermatología?"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "La consulta de dermatología cuesta $120.000."
+        },
+        {
+          "tipo": "texto",
+          "texto": "Disculpa, la consulta cuesta $150.000."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "buscar_conocimiento",
+            "error": null
+          }
+        ],
+        "controles": [
+          "corregir",
+          "descartar"
+        ],
+        "estado_final": "escalada",
+        "respuesta_contiene": [
+          "asesor"
+        ],
+        "respuesta_no_contiene": [
+          "120",
+          "150"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000032": {
+        "estado": "escalada",
+        "citas_activas": 0
+      }
+    }
+  }
+}

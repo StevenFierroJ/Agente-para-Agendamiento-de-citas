@@ -683,7 +683,7 @@ dimensionarse con esa cifra y con los límites de tasa del proveedor.
   Para 7 documentos con secciones de menos de 100 palabras, 384 dimensiones y
   512 tokens alcanzan. La ficha exige los prefijos `query: ` y `passage: `.
 - **Partición:** una sección `##` es un fragmento; el título y la sección van
-  dentro del texto que se embebe. Son 21 fragmentos.
+  dentro del texto que se embebe. Son 23 fragmentos.
 - **Búsqueda:** pgvector, distancia coseno, recorrido exacto (D-07), k = 4.
 - **Goldset** (`harness/rag/preguntas.json`): 24 preguntas con respuesta (con
   documento esperado y dato de referencia) y 16 sin respuesta (11 de dominio

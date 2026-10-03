@@ -5,6 +5,8 @@ import { encolarMensaje } from '../infraestructura/cola/cola.js';
 import type { Mongo } from '../infraestructura/mongo/mongo.js';
 import { registrarMensajeEntrante } from '../infraestructura/postgres/mensajes.js';
 import { describirError, enmascararTelefono, type Registro } from '../infraestructura/registro.js';
+import { conversacionDeMensaje } from '../infraestructura/postgres/lectura.js';
+import { registrarRutasDeLectura } from './lectura.js';
 import { CuerpoWebhook, detalleDeError } from './webhook.js';
 
 export interface DependenciasApi {
@@ -44,12 +46,13 @@ export function crearApi(deps: DependenciasApi): FastifyInstance {
       const registrado = await registrarMensajeEntrante(cliente, { messageId, telefono, texto, enviadoEn: new Date(timestamp) });
       if (!registrado) {
         await cliente.query('ROLLBACK');
-        return respuesta.status(200).send({ estado: 'duplicado', message_id: messageId });
+        const conversacionId = await conversacionDeMensaje(deps.pool, messageId);
+        return respuesta.status(200).send({ estado: 'duplicado', message_id: messageId, conversacion_id: conversacionId });
       }
       await encolarMensaje(deps.boss, cliente, messageId, registrado.conversacionId);
       await cliente.query('COMMIT');
       deps.registro.info('mensaje recibido', { message_id: messageId, telefono: enmascararTelefono(telefono) });
-      return respuesta.status(202).send({ estado: 'recibido', message_id: messageId });
+      return respuesta.status(202).send({ estado: 'recibido', message_id: messageId, conversacion_id: registrado.conversacionId });
     } catch (error) {
       await cliente.query('ROLLBACK');
       throw error;
@@ -57,6 +60,8 @@ export function crearApi(deps: DependenciasApi): FastifyInstance {
       cliente.release();
     }
   });
+
+  registrarRutasDeLectura(app, { pool: deps.pool, mongo: deps.mongo });
 
   app.get('/salud', async (_peticion, respuesta) => {
     const comprobar = async (fn: () => Promise<unknown>) => {

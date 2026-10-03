@@ -34,7 +34,7 @@ describe('POST /webhooks/messages', () => {
   it('registra, encola y responde 202', async () => {
     const r = await enviar(mensaje('wamid.001'));
     expect(r.statusCode).toBe(202);
-    expect(r.json()).toEqual({ estado: 'recibido', message_id: 'wamid.001' });
+    expect(r.json()).toEqual({ estado: 'recibido', message_id: 'wamid.001', conversacion_id: 1 });
     expect(await contar("SELECT count(*) AS n FROM mensajes_entrantes WHERE estado = 'recibido'")).toBe(1);
     expect(await contar('SELECT count(*) AS n FROM conversaciones')).toBe(1);
     expect(await trabajos()).toBe(1);
@@ -50,7 +50,7 @@ describe('POST /webhooks/messages', () => {
     expect((await enviar(mensaje('wamid.003'))).statusCode).toBe(202);
     const repetido = await enviar(mensaje('wamid.003'));
     expect(repetido.statusCode).toBe(200);
-    expect(repetido.json()).toEqual({ estado: 'duplicado', message_id: 'wamid.003' });
+    expect(repetido.json()).toEqual({ estado: 'duplicado', message_id: 'wamid.003', conversacion_id: 1 });
     expect(await contar('SELECT count(*) AS n FROM mensajes_entrantes')).toBe(1);
     expect(await trabajos()).toBe(1);
   });

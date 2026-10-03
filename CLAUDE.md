@@ -148,8 +148,8 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 ## API
 
 - `POST /webhooks/messages` → 202 (o 200 si es repetido). 400 con detalle si el cuerpo es inválido.
-- `GET /conversaciones?estado=` → bandeja.
-- `GET /conversaciones/:id` → mensajes y, por cada respuesta, su turno con herramientas.
+- `GET /conversaciones?estado=&limite=&antes=` → bandeja con cursor `(ultimo_mensaje_en, id)`; teléfono enmascarado (D-27).
+- `GET /conversaciones/:id` → mensajes, turnos con herramientas y controles, citas, pendientes, `respondiendo` y resumen de costo.
 - `GET /salud`.
 
 Sin envío a WhatsApp: la respuesta se guarda y se muestra en la interfaz.

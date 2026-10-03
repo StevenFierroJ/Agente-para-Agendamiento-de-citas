@@ -316,6 +316,36 @@ no una cifra exacta.
 **Pendiente de decisión:** una cuarta capa, un verificador con LLM para
 afirmaciones sin cifras, a costa de una llamada más por respuesta informativa.
 
+### D-27 · API de lectura y frontend
+- **`GET /conversaciones?estado=&limite=&antes=`:** paginación por cursor
+  `(ultimo_mensaje_en, id)`, no por desplazamiento. Así una conversación nueva no
+  corre las páginas mientras el coordinador las recorre. Los índices
+  (`003_indices_bandeja.sql`) incluyen el `id` de desempate y cubren la consulta
+  con y sin filtro; está verificado con `EXPLAIN`.
+- **`GET /conversaciones/:id`:** devuelve mensajes (MongoDB), turnos con
+  herramientas y controles (MongoDB), citas y mensajes pendientes
+  (PostgreSQL), más un resumen de tokens y costo. Si algún turno tiene costo
+  desconocido, el total es desconocido. `respondiendo` sale de PostgreSQL: es
+  la fuente que sabe qué mensajes faltan por procesar.
+- **La lectura no pasa por la capa de aplicación.** Mostrar datos no aplica
+  reglas de negocio; las consultas viven en `infraestructura/postgres/lectura.ts`.
+- **Teléfono enmascarado** (`+57300***2233`) en toda la API, porque la prueba no
+  tiene autenticación. Con autenticación, un coordinador autorizado vería el
+  número completo para contactar al paciente escalado.
+- **El webhook devuelve `conversacion_id`,** también en un duplicado. Así el
+  simulador sigue su conversación sin que la API tenga que buscar por teléfono.
+- **Frontend:**
+  - React con Vite, con el proxy `/api` al puerto 3000, así que no hay CORS;
+  - sin librerías de enrutamiento ni de estado; navegación por hash
+    (`#/conversaciones/12`), para poder compartir el enlace;
+  - un solo hook de consulta periódica: aborta la petición en vuelo al cambiar
+    de vista y conserva el último dato bueno si una consulta falla;
+  - sondea cada 1 s mientras el asistente responde y cada 5 s en reposo;
+  - las fechas se muestran en hora de Colombia sin importar la zona del
+    navegador;
+  - el simulador permite fijar la hora del mensaje, para reproducir el ejemplo
+    del enunciado.
+
 ## Secciones pendientes
 
 - Arquitectura general

@@ -11,27 +11,24 @@ y agenda citas en una agenda real. La operación es en Colombia (`America/Bogota
 
 ## Puesta en marcha: un comando
 
-Requisitos: Docker con Compose v2 y una API key de Anthropic.
-
-```bash
-cp .env.example .env        # y pon tu key en ANTHROPIC_API_KEY=sk-ant-...
-docker compose up --build -d
-```
-
-O con make, que además imprime dónde abrir cada cosa al terminar:
+Requisitos: Docker con Compose v2, `make` y una API key de Anthropic.
 
 ```bash
 make up
 ```
+
+- La primera vez crea `.env` a partir de `.env.example` y se detiene pidiendo tu
+  key: completa `ANTHROPIC_API_KEY=sk-ant-...` en `.env` y vuelve a correr
+  `make up`. Nunca sobrescribe un `.env` existente.
+- Levanta todo en segundo plano e imprime dónde abrir cada cosa:
 
 | Qué | Dónde |
 |---|---|
 | **Interfaz** (bandeja, detalle, simulador) | **http://localhost:8080** |
 | API | http://localhost:3000 |
 
-Con `-d` corre en segundo plano y te devuelve la terminal. Sin `-d` también
-funciona, pero la terminal queda mostrando los logs de todos los servicios y no
-"termina": son servidores que siguen corriendo hasta que los detengas.
+Sin `make`, el equivalente es `cp .env.example .env` (solo la primera vez),
+poner la key y correr `docker compose up --build -d`.
 
 | Para | Con make | Con docker compose |
 |---|---|---|
@@ -39,11 +36,6 @@ funciona, pero la terminal queda mostrando los logs de todos los servicios y no
 | Seguir los logs de la aplicación | `make logs` | `docker compose logs -f api trabajador` |
 | Detener todo, conservando los datos | `make down` | `docker compose down` |
 | Detener todo y borrar los datos | `make reset` | `docker compose down -v` |
-
-- **Interfaz:** http://localhost:8080. Tiene tres vistas: **bandeja** con filtro
-  por estado, **detalle** de cada conversación con las herramientas y el costo
-  de cada respuesta, y **simulador** de paciente.
-- **API:** http://localhost:3000.
 
 Qué levanta, en orden:
 

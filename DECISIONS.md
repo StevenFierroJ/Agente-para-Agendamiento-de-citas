@@ -753,3 +753,20 @@ afirmaciones sin cifras, a costa de una llamada más por respuesta informativa.
     navegador;
   - el simulador permite fijar la hora del mensaje, para reproducir el ejemplo
     del enunciado.
+
+### D-28 · Mensajes con el mismo `timestamp` y la pregunta actual al final
+Lo encontró la verificación del README desde un clon limpio. Dos mensajes del
+mismo teléfono con el mismo `timestamp` (WhatsApp tiene resolución de segundos)
+se ordenaban por `(fecha, orden)`: las dos entradas antes de las dos respuestas.
+El historial que vio el modelo terminaba en su propia respuesta anterior, y Haiku
+devolvió una respuesta vacía, que terminó en falla técnica y escalamiento.
+- Entrada y respuesta guardan `turno_iniciado_en`, igual en las dos, y se
+  ordena por `(fecha, turno_iniciado_en, orden)`: cada par queda junto.
+- El turno arma el historial sin el mensaje actual y lo agrega siempre al
+  final. El último mensaje que ve el modelo es la pregunta pendiente, aunque
+  el orden en MongoDB fallara.
+
+Hay un test de regresión, y se verificó que falla sin la corrección. En la misma
+verificación, Haiku pidió confirmación antes de escalar a quien pidió "hablar con
+una persona"; ahora el prompt indica escalar de inmediato.
+

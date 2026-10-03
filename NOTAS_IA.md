@@ -91,3 +91,16 @@ corrigió. Alimenta la sección "Uso de IA" de `DECISIONS.md`.
 - **El umbral solo no resuelve el dominio cercano.** La primera intuición era que
   un umbral bien calibrado bastaba. Las métricas mostraron que no hay umbral que
   separe "el tema está pero el dato no". De ahí salieron las tres capas de D-26.
+
+## Paso 8
+
+- **Probar el README como evaluador encontró un bug.** Al seguir el README desde un
+  clon limpio, el ejemplo del enunciado terminó en falla técnica: dos mensajes con
+  el mismo `timestamp` desordenaban el historial (D-28). Los tests no lo cubrían
+  porque siempre usaban timestamps distintos. El test de regresión se verificó
+  fallando sin la corrección antes de darlo por bueno.
+- **Precios de AWS sin escribirlos de memoria.** Las páginas de precios de RDS y
+  VPC cargan sus tablas con JavaScript y no se pudieron leer, y la de VPC mostró
+  otra región. Se usó la Price List API oficial, que además etiqueta Single-AZ y
+  Multi-AZ. El JSON de las páginas no lo hacía, y suponer cuál era cuál habría
+  sido escribir de memoria con otro nombre.

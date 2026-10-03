@@ -55,7 +55,7 @@ export function registrarRutasDeLectura(app: FastifyInstance, deps: { pool: pg.P
     if (!conversacion) return respuesta.status(404).send({ error: 'no_encontrada', detalle: `No existe la conversación ${parametros.data.id}` });
 
     const [mensajes, turnos, pendientes, citas] = await Promise.all([
-      deps.mongo.mensajes.find({ conversacion_id: conversacion.id }).sort({ fecha: 1, orden: 1 }).limit(LIMITE_MENSAJES).toArray(),
+      deps.mongo.mensajes.find({ conversacion_id: conversacion.id }).sort({ fecha: 1, turno_iniciado_en: 1, orden: 1 }).limit(LIMITE_MENSAJES).toArray(),
       deps.mongo.turnos.find({ conversacion_id: conversacion.id }).sort({ fecha: 1 }).toArray(),
       leerPendientes(deps.pool, conversacion.id),
       leerCitas(deps.pool, conversacion.id),
@@ -66,7 +66,7 @@ export function registrarRutasDeLectura(app: FastifyInstance, deps: { pool: pg.P
     const costos = turnos.map((t) => t.costo_usd);
     return {
       conversacion: { ...conversacion, telefono: enmascararTelefono(conversacion.telefono) },
-      mensajes: mensajes.map(({ _id, guardado_en: _g, ...m }) => ({ id: _id, ...m })),
+      mensajes: mensajes.map(({ _id, guardado_en: _g, turno_iniciado_en: _t, ...m }) => ({ id: _id, ...m })),
       pendientes: pendientes.filter((p) => !yaEnMongo.has(p.message_id)),
       respondiendo: pendientes.length > 0,
       turnos: turnos.map(({ _id, ...t }) => ({ message_id: _id, ...t })),

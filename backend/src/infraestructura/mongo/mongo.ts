@@ -21,7 +21,7 @@ export async function conectarMongo(url: string): Promise<Mongo> {
   const mensajes = db.collection<DocMensaje>('mensajes');
   const turnos = db.collection<DocTurno>('turnos');
   // Historial de una conversación en orden; detalle de una conversación con sus turnos.
-  await mensajes.createIndex({ conversacion_id: 1, fecha: 1, orden: 1 });
+  await mensajes.createIndex({ conversacion_id: 1, fecha: 1, turno_iniciado_en: 1, orden: 1 });
   await turnos.createIndex({ conversacion_id: 1, fecha: 1 });
   return { cliente, db, mensajes, turnos, cerrar: () => cliente.close() };
 }
@@ -41,7 +41,7 @@ export class AlmacenMongo implements AlmacenConversaciones {
   async historial(conversacionId: number, limite: number): Promise<RegistroMensaje[]> {
     const recientes = await this.mongo.mensajes
       .find({ conversacion_id: conversacionId })
-      .sort({ fecha: -1, orden: -1 })
+      .sort({ fecha: -1, turno_iniciado_en: -1, orden: -1 })
       .limit(limite)
       .toArray();
     return recientes.reverse().map(({ _id, ...resto }) => ({ id: _id, ...resto }));

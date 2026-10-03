@@ -155,6 +155,12 @@ export interface RegistroMensaje {
   rol: 'paciente' | 'asistente';
   texto: string;
   fecha: Date;
+  /**
+   * Inicio del turno que procesó el mensaje; igual en la entrada y su respuesta.
+   * Desempata mensajes con el mismo `timestamp` (WhatsApp tiene resolución de
+   * segundos) sin separar cada entrada de su respuesta.
+   */
+  turno_iniciado_en: Date;
   orden: 0 | 1;
   guardado_en: Date;
 }

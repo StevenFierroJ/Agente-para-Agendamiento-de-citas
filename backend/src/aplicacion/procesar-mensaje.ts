@@ -38,6 +38,7 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     rol: 'paciente',
     texto: mensaje.texto,
     fecha: mensaje.enviadoEn,
+    turno_iniciado_en: iniciadoEn,
     orden: 0,
     guardado_en: iniciadoEn,
   });
@@ -58,11 +59,15 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
         sedes: catalogo.sedes.map((s) => s.nombre),
         especialidades: catalogo.especialidades.map((e) => e.nombre),
       }),
-      // En un reintento, la respuesta de un intento anterior de este mismo mensaje
-      // ya puede estar guardada: no es historial, es el turno que se está rehaciendo.
-      historial: historial.filter((m) => m.id !== `${messageId}:salida`).map(
-        (m): MensajeLlm => (m.rol === 'paciente' ? { rol: 'paciente', contenido: m.texto } : { rol: 'asistente', contenido: m.texto }),
-      ),
+      // El historial previo, sin este mensaje (en un reintento su respuesta anterior
+      // ya puede estar guardada, D-22), y el mensaje actual siempre al final: el
+      // último mensaje que ve el modelo es la pregunta pendiente (D-28).
+      historial: [
+        ...historial
+          .filter((m) => m.message_id !== messageId)
+          .map((m): MensajeLlm => (m.rol === 'paciente' ? { rol: 'paciente', contenido: m.texto } : { rol: 'asistente', contenido: m.texto })),
+        { rol: 'paciente', contenido: mensaje.texto },
+      ],
     },
     deps,
   );
@@ -80,6 +85,7 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
     rol: 'asistente',
     texto: turno.respuesta,
     fecha: mensaje.enviadoEn,
+    turno_iniciado_en: iniciadoEn,
     orden: 1,
     guardado_en: terminadoEn,
   });
@@ -149,6 +155,7 @@ export async function abandonarMensaje(messageId: string, causa: unknown, deps: 
       rol: 'asistente',
       texto: MENSAJE_FALLA_TECNICA,
       fecha: mensaje.enviadoEn,
+      turno_iniciado_en: new Date(),
       orden: 1,
       guardado_en: new Date(),
     });

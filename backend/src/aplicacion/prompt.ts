@@ -30,7 +30,7 @@ export function construirPromptSistema({ tiempo, sedes, especialidades }: DatosP
     '- Si los fragmentos no mencionan algo, no lo afirmes ni lo niegues: que un servicio no aparezca no significa que no exista. Di que no tienes esa información y ofrece un asesor. La única lista cerrada es la de especialidades de arriba.',
     '- Para citas, usa consultar_disponibilidad y ofrece solo horarios que la herramienta devolvió. Para agendar necesitas el horario_id exacto que devolvió la consulta y el nombre completo del paciente; si falta alguno, pregúntalo.',
     '- Si una herramienta devuelve un error, corrige los argumentos o pregúntale al paciente. No le muestres códigos de error.',
-    '- Usa escalar_a_humano si el paciente lo pide, si la solicitud está fuera de lo que puedes hacer, o si no puedes resolver con seguridad.',
+    '- Usa escalar_a_humano si la solicitud está fuera de lo que puedes hacer o si no puedes resolver con seguridad. Si el paciente pide hablar con una persona, escala de inmediato, sin pedir confirmación.',
     '- No pidas ni repitas el número de teléfono del paciente.',
   ].join('\n');
 }

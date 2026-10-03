@@ -75,6 +75,24 @@ describe('trabajador', () => {
     ]);
   });
 
+  it('dos mensajes con el mismo timestamp: cada entrada junto a su respuesta, y la pregunta actual al final', async () => {
+    llm.guionar('t.1', [{ tipo: 'texto', texto: 'Respuesta a uno' }]);
+    llm.guionar('t.2', [{ tipo: 'texto', texto: 'Respuesta a dos' }]);
+    await enviar(mensaje('t.1', 'Uno', { timestamp: '2026-10-05T14:00:00Z' }));
+    await esperarProcesados(sistema.pool, ['t.1']);
+    await enviar(mensaje('t.2', 'Dos', { timestamp: '2026-10-05T14:00:00Z' }));
+    await esperarProcesados(sistema.pool, ['t.2']);
+
+    const segundo = llm.pedidos.find((p) => p.etiqueta === 't.2');
+    expect(segundo?.mensajes.slice(1)).toEqual([
+      { rol: 'paciente', contenido: 'Uno' },
+      { rol: 'asistente', contenido: 'Respuesta a uno' },
+      { rol: 'paciente', contenido: 'Dos' },
+    ]);
+    const detalle = (await sistema.api.inject({ method: 'GET', url: '/conversaciones/1' })).json();
+    expect(detalle.mensajes.map((m: { texto: string }) => m.texto)).toEqual(['Uno', 'Respuesta a uno', 'Dos', 'Respuesta a dos']);
+  });
+
   it('conversación escalada: no llama al LLM y responde el mensaje fijo', async () => {
     await sistema.pool.query(
       "INSERT INTO conversaciones (telefono, estado, ultimo_mensaje_en) VALUES ($1, 'escalada', now())", [TELEFONO],

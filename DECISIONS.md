@@ -1,11 +1,419 @@
 # Decisiones de diseño
 
-> Documento en construcción. Las secciones de fondo (arquitectura, datos, nube,
-> pipeline de IA, costo, trade-offs) se redactan por partes y se revisan antes de
-> darlas por cerradas. El registro de decisiones de abajo se escribe en el momento
-> en que se toma cada una.
+> **Estado:** las secciones 1 a 9 son un **borrador para revisión del director**. El
+> registro del final (D-01 a D-27) se escribió en el momento de cada decisión.
+> Las cifras de costo tienen fecha y fuente; ninguna está escrita de memoria.
 
-## Registro de decisiones y ambigüedades del enunciado
+Criterio rector: **el código responde por la corrección; el modelo solo propone.**
+El modelo elige qué herramienta usar y redacta. El código valida cada argumento,
+decide el estado de la conversación, garantiza que no haya citas ni mensajes
+duplicados y verifica que la respuesta no traiga datos que no estén en las fuentes.
+
+## 1. Arquitectura general
+
+```
+backend/src/
+  dominio/          reglas puras: fechas en hora de Colombia, agenda, estados, respaldo de datos
+  aplicacion/       ciclo del turno (orquestador), herramientas, prompt, puertos (interfaces)
+  infraestructura/  PostgreSQL, MongoDB, pg-boss, Anthropic, embeddings e5
+  http/             webhook y lectura (Fastify)
+  api.ts / trabajador.ts   puntos de entrada: leen el entorno y arman el sistema
+```
+
+- **Dos procesos.** La **API** recibe el webhook y sirve la lectura; nunca llama
+  al LLM. El **trabajador** consume la cola y ejecuta los turnos. Así el webhook
+  responde en milisegundos aunque el LLM tarde segundos, y cada proceso escala
+  por separado.
+- **Dónde vive cada cosa.** La lógica de negocio está en `dominio/`: funciones
+  puras sin E/S y con tests exhaustivos (qué es "mañana", cuándo un horario está
+  ocupado, qué estado final tiene un turno). La integración con el LLM es un
+  adaptador (`infraestructura/llm/anthropic.ts`) detrás del puerto `LlmClient`.
+  El orquestador no conoce el SDK.
+- **LLM intercambiable.** El mismo puerto tiene una implementación falsa con
+  guion (`LlmGuionado`), que usan todos los tests y el goldset. Cambiar Gemini
+  por Claude (D-20) tocó un archivo de infraestructura y cero de dominio.
+- **Asincronía:** cola `pg-boss` sobre el mismo PostgreSQL. El mensaje se
+  registra y se encola en **una sola transacción**: si una de las dos cosas
+  falla, no queda ninguna (D-01, D-17).
+- **Sin LangChain ni LangGraph.** El ciclo de herramientas son unas 150 líneas
+  propias. Hacía falta controlar cada paso: tope de iteraciones, tiempo límite
+  con un reintento, errores que vuelven al modelo, la barandilla de datos y la
+  traza completa del turno.
+
+## 2. Modelo de datos
+
+**PostgreSQL guarda lo que necesita transacciones y restricciones:**
+
+| Tabla | Para qué | Restricción o índice clave |
+|---|---|---|
+| `sedes`, `especialidades`, `profesionales`, `horarios` | agenda | `UNIQUE (profesional_id, inicio)`; índice `(sede_id, inicio)` para disponibilidad |
+| `citas` | citas | **índice único parcial `(horario_id) WHERE estado = 'activa'`** |
+| `conversaciones` | una por teléfono, con su estado | `UNIQUE (telefono)`; índices `(estado, ultimo_mensaje_en DESC, id DESC)` y `(ultimo_mensaje_en DESC, id DESC)` para la bandeja |
+| `mensajes_entrantes` | idempotencia y fuente del trabajador | `PRIMARY KEY (message_id)`; índice `(conversacion_id, enviado_en)` |
+| `documentos`, `fragmentos` | RAG | `vector(384)`, distancia coseno |
+
+**MongoDB guarda lo que crece rápido y cambia de forma:**
+
+| Colección | Contenido | Índice |
+|---|---|---|
+| `mensajes` | texto de entrada y salida, `_id` determinista (`<message_id>:entrada` o `:salida`) | `(conversacion_id, fecha, orden)` |
+| `turnos` | traza: modelo, tokens, costo, latencia, llamadas al LLM, herramientas con argumentos y resultados, controles, estado final | `(conversacion_id, fecha)` |
+
+El criterio fue el tipo de dato. Una cita mal duplicada es un error de negocio, así
+que va donde hay restricciones. Una traza de turno tiene forma variable (cada
+herramienta devuelve otra cosa) y crece con cada mensaje, así que va a documentos.
+Además, el historial por teléfono se resuelve sin JOIN: `conversaciones.telefono`
+lleva a `conversacion_id` y de ahí al índice de `mensajes`.
+
+**No hay citas duplicadas.** La garantía es el índice único parcial. `agendar_cita`
+lee y decide con la regla del dominio, pero si otro paciente inserta entre la
+lectura y la inserción, el `INSERT` recibe `23505` y se responde `horario_ocupado`.
+Lo cubren un test determinista (otra transacción bloquea la inserción) y 25 rondas
+concurrentes, más 20 grupos en disputa en el harness de volumen (D-19).
+
+**No hay mensajes procesados dos veces.** `message_id` es la llave primaria. Un
+duplicado choca en el `INSERT`, la transacción se revierte y la respuesta es 200 sin
+encolar. Diez envíos simultáneos del mismo id dan un solo 202 (test). Si un turno se
+reintenta, los `upsert` sobre `_id` determinista sobrescriben en MongoDB y
+`agendar_cita` devuelve la misma cita (D-13, D-22).
+
+**Consistencia entre las dos bases** (D-01, D-14, D-15):
+1. PostgreSQL confirma primero: cita y estado de la conversación.
+2. MongoDB se escribe con `upsert` sobre `_id` determinista.
+3. El mensaje pasa a `procesado` solo después de que MongoDB confirmó.
+
+Si MongoDB falla, el trabajo se reintenta. Si se agotan los reintentos, el mensaje
+queda `fallido` y la conversación escalada, sin bloquear las siguientes. Medido:
+con MongoDB en pausa 60 s se reintentaron 38 trabajos y no se perdió ningún
+mensaje (D-23).
+
+## 3. Nube (AWS)
+
+Diseño para 50 clínicas y 20.000 mensajes al día (~0,23 por segundo en promedio y
+2 a 3 en hora pico).
+
+```mermaid
+flowchart LR
+    meta["WhatsApp Cloud API<br/>(Meta)"] -->|webhook HTTPS<br/>firma X-Hub-Signature-256| alb
+    coord["Coordinador<br/>(navegador)"] -->|OIDC de la empresa| alb
+    subgraph aws["AWS us-east-1 · VPC en 2 zonas de disponibilidad"]
+        alb["ALB<br/>autenticación OIDC para la bandeja"]
+        subgraph privadas["Subredes privadas"]
+            api["ECS Fargate · API ×2<br/>webhook, lectura, frontend estático"]
+            trab["ECS Fargate · trabajador ×2..N<br/>turnos + e5-small en proceso<br/>+ relay de la bandeja de salida"]
+            rds[("RDS PostgreSQL Multi-AZ<br/>+ pgvector")]
+            sqs[["SQS FIFO<br/>MessageGroupId = conversación"]]
+            dlq[["DLQ"]]
+        end
+        nat["NAT Gateway ×2"]
+        sm["Secrets Manager"]
+        cw["CloudWatch<br/>logs · métricas · alarmas"]
+    end
+    atlas[("MongoDB Atlas M10<br/>mensajes y turnos")]
+    anthropic["API de Anthropic<br/>Claude Haiku 4.5"]
+
+    alb --> api
+    api -->|"1 transacción: mensaje + bandeja de salida"| rds
+    trab -->|relay| sqs
+    sqs --> trab
+    sqs -. "tras 4 intentos" .-> dlq
+    trab --> rds
+    trab -->|PrivateLink| atlas
+    api -->|PrivateLink| atlas
+    trab --> nat --> anthropic
+    sm -.-> api
+    sm -.-> trab
+    api -.-> cw
+    trab -.-> cw
+```
+
+**Servicios y por qué:**
+- **Cómputo:** ECS Fargate (ARM). Hay dos servicios de larga vida (API y
+  trabajador), sin servidores que administrar. El trabajador carga el modelo de
+  embeddings (118 MB) una vez al arrancar.
+  - *Descarté Lambda* para el trabajador: un turno puede durar hasta 200 s y
+    cada arranque en frío recargaría el modelo.
+  - *Descarté EKS:* un clúster de Kubernetes para dos servicios es costo
+    operativo sin beneficio.
+- **Cola:** SQS FIFO con `MessageGroupId` = conversación, que da la misma
+  semántica que `key_strict_fifo` (un turno a la vez por conversación, en orden
+  de llegada), más `MessageDeduplicationId` = `message_id` y una cola de
+  mensajes fallidos.
+  - **Por qué SQS y no pg-boss en producción:** la cola sobrevive a una
+    conmutación o mantenimiento de RDS, la redirección desde la cola de fallidos
+    viene incluida, la profundidad de la cola es una métrica nativa para escalar
+    el trabajador, y se quita el sondeo constante sobre la base.
+  - **Costo de SQS:** se pierde el encolado en la misma transacción. Se
+    compensa con una **bandeja de salida**: `mensajes_entrantes` ya es esa
+    bandeja, y un relay publica los mensajes en `recibido`. A 20.000 mensajes
+    diarios pg-boss alcanzaría de sobra; elijo SQS por operabilidad, no por
+    capacidad.
+- **Bases de datos:**
+  - RDS PostgreSQL Multi-AZ, que tiene pgvector disponible.
+  - MongoDB Atlas M10 en la misma región, con PrivateLink.
+  - *Descarté DocumentDB:* evita un proveedor más, pero su compatibilidad con
+    MongoDB es parcial.
+  - *Descarté OpenSearch para vectores:* con unos 1.000 fragmentos (50 clínicas
+    × ~20), pgvector con recorrido exacto sobra.
+- **Secretos:** Secrets Manager para la key de Anthropic y las credenciales,
+  inyectados como variables de entorno de la tarea.
+- **Red:** subredes privadas en dos zonas. La única salida a internet es la API
+  de Anthropic, por NAT. *Descarté endpoints de interfaz para SQS, Secrets
+  Manager, ECR y Logs:* costarían unos USD 73 al mes por 5 endpoints en 2 zonas
+  (USD 0,01 por hora cada uno), para un tráfico que por NAT cuesta centavos. El
+  bucket de S3 usa el endpoint de gateway, que es gratuito.
+- **Observabilidad:**
+  - logs JSON con el teléfono enmascarado en CloudWatch Logs;
+  - métricas propias: turnos por estado final, tasa de fallas del LLM,
+    activaciones de la barandilla, costo por turno, antigüedad del mensaje más
+    viejo en SQS, profundidad de la cola de fallidos;
+  - alarmas sobre la cola de fallidos > 0, la antigüedad de la cola > 60 s y la
+    tasa de `falla_llm` > 5 %.
+
+**Cómo escala:**
+- **Trabajador:** escala por `ApproximateAgeOfOldestMessage` de SQS.
+- **API:** escala por CPU o por peticiones al ALB.
+- **Capacidad medida** con el harness de volumen: un trabajador con 20 turnos en
+  paralelo procesa entre 10 y 16 turnos por segundo con 1 s de latencia simulada
+  del LLM (D-24). Con Haiku real (1,4 a 4,4 s por turno), un solo trabajador
+  cubre la hora pico; el segundo es por disponibilidad.
+- **El techo real son los límites de tasa de Anthropic** del nivel contratado,
+  no AWS.
+
+**Qué pasa si se cae una pieza:**
+
+| Falla | Comportamiento |
+|---|---|
+| Una tarea de la API | El ALB enruta a la otra. Meta reintenta los webhooks no 2xx, y la idempotencia absorbe los reintentos |
+| Una tarea del trabajador | El mensaje vuelve a SQS al vencer su tiempo de visibilidad. El orden por conversación se mantiene |
+| Conmutación de RDS (~1–2 min) | El webhook responde 5xx y Meta reintenta. El trabajador reintenta con espera exponencial |
+| Primario de Atlas | Escrituras reintentables del driver más los reintentos de la cola. Medido: 60 s sin MongoDB, sin pérdida |
+| API de Anthropic caída | Mensaje fijo, conversación escalada, turno con el error (D-14). Una alarma avisa por la tasa de `falla_llm` |
+| Una zona completa | Todo es multizona: dos NAT, RDS Multi-AZ, tareas repartidas |
+
+**Costo mensual estimado de infraestructura** (us-east-1, 730 h). Precios
+consultados el 2026-10-03 en la Price List API de AWS (publicada el 2026-10-01),
+en las páginas de Fargate y CloudWatch y en la de MongoDB Atlas:
+
+| Componente | USD/mes |
+|---|---:|
+| Fargate API: 2 × (0,5 vCPU, 1 GB) ARM a $0,0000089944/vCPU-s y $0,0000009889/GB-s | 28,8 |
+| Fargate trabajador: 2 × (1 vCPU, 2 GB) | 57,7 |
+| RDS PostgreSQL db.m7g.large Multi-AZ ($0,337/h) + 50 GB gp3 Multi-AZ ($0,23/GB-mes) | 257,5 |
+| MongoDB Atlas M10 ($0,08/h) | 58,4 |
+| ALB ($0,0225/h + ~1 LCU a $0,008/h) | 22,3 |
+| NAT Gateway × 2 ($0,045/h) + 30 GB ($0,045/GB) | 67,0 |
+| PrivateLink a Atlas: 2 zonas ($0,01/h) | 14,7 |
+| SQS FIFO: ~2 M peticiones ($0,50 por millón) | 1,0 |
+| Secrets Manager: 3 secretos ($0,40) | 1,2 |
+| CloudWatch: 3 GB de logs ($0,50/GB), 5 métricas ($0,30) y 2 alarmas ($0,10) sobre el nivel gratuito | 3,3 |
+| ECR: 1 GB ($0,10/GB-mes) | 0,1 |
+| **Total** | **≈ 512** |
+
+Supuestos: unos 50 KB de tráfico por turno hacia Anthropic, 3 KB de logs por
+mensaje y 30 días de retención. No incluye impuestos, transferencia entre zonas
+ni backups por encima del tamaño de la base, que a este volumen son marginales.
+Ahorros posibles, cada uno con su costo:
+- un solo NAT: −USD 33, a costa de perder la salida a internet si cae esa zona;
+- `db.t4g.large` Multi-AZ: −USD 58, con instancia de rendimiento variable;
+- Savings Plans para Fargate y RDS.
+
+**Separación de datos por clínica:**
+- **Tenant:** `clinica_id` en todas las tablas de PostgreSQL y en todos los
+  documentos de MongoDB. Las llaves únicas lo incluyen; por ejemplo,
+  `(clinica_id, telefono)`, porque un paciente puede escribirles a dos clínicas.
+- **Row-Level Security en PostgreSQL:** políticas
+  `USING (clinica_id = current_setting('app.clinica_id')::int)`. La aplicación
+  hace `SET LOCAL app.clinica_id` en cada transacción y se conecta con un rol
+  sin `BYPASSRLS`. Así un error en una consulta no filtra datos de otra clínica.
+- **MongoDB:** los índices empiezan por `clinica_id` y la capa de acceso exige el
+  tenant en cada consulta (Atlas no tiene RLS).
+- **Resolución del tenant:** por el `phone_number_id` de WhatsApp de cada
+  clínica, que llega en el webhook.
+- **Por clínica:** documentos y fragmentos (la búsqueda vectorial filtra por
+  `clinica_id` antes de ordenar por distancia), zona horaria, sedes y
+  configuración del prompt. Cada turno guarda su costo, así que la facturación
+  por clínica sale de `turnos`.
+- *Descarté una base por clínica* (50 bases que migrar y monitorear) y *un
+  esquema por clínica* (50 migraciones por cambio). Quedan reservados para una
+  clínica que exija aislamiento físico por contrato.
+
+## 4. Pipeline de IA
+
+- **Partición:** una sección `##` es un fragmento, con el título del documento y
+  la sección dentro del texto que se embebe. Los documentos son cortos y cada
+  sección trata un tema; partir más fino separaba datos de su contexto.
+- **Embeddings:** `multilingual-e5-small`, local y en proceso (ONNX q8, 118 MB,
+  384 dimensiones), con los prefijos `query: ` y `passage: ` que exige su ficha.
+  *Descarté `bge-m3`* (2,27 GB, 1.024 dimensiones, 8.192 tokens): su capacidad
+  no aporta con fragmentos de menos de 100 palabras (D-25).
+- **Base vectorial:** pgvector en el mismo PostgreSQL, con recorrido exacto
+  (sin HNSW, D-07) y k = 4.
+- **Calidad medida con un goldset** (`npm run harness:rag`, 40 preguntas):
+  Recall@1 0,958, Recall@4 1,000, MRR@4 0,972, AUC-ROC 0,885. Umbral 0,837
+  (D-25).
+- **Prompt:** se arma en cada turno con:
+  - fecha, hora, día y "mañana" en hora de Colombia, calculados desde el
+    `timestamp` del mensaje y no desde el reloj del servidor;
+  - las sedes y especialidades leídas de la base;
+  - reglas: responder solo con lo que devuelvan las herramientas y no afirmar
+    ni negar lo que no aparece;
+  - formato de WhatsApp.
+
+  El teléfono nunca llega al LLM; el goldset y el harness de volumen lo
+  verifican en cada pedido.
+- **Ciclo de tool calling:**
+  - **Tope** de 5 llamadas al LLM por turno; al agotarse, mensaje fijo y
+    escalamiento.
+  - **Validación:** cada herramienta valida con un esquema zod estricto, que
+    también genera la definición que ve el modelo. Un error vuelve al modelo
+    como `tool_result` con `is_error`, el código del error y un detalle que dice
+    cómo corregir (por ejemplo, la lista de sedes válidas).
+  - **Casos cubiertos:** argumentos que no son JSON, herramientas que no
+    existen y campos de más, cada uno con su caso en el goldset.
+  - **El estado final lo decide el código** según lo que pasó, no según lo que
+    dice el modelo (D-05, D-12).
+
+## 5. Confiabilidad
+
+**Que no invente.** Son tres capas, porque ninguna alcanza sola (D-26):
+1. el umbral de similitud, que filtra lo que está fuera de dominio;
+2. el prompt (si no está en los fragmentos, ni lo afirma ni lo niega);
+3. una verificación determinista en código: todo número de la respuesta
+   (hora, precio, teléfono, dirección, fecha) tiene que estar en la evidencia
+   del turno. Si no está, el modelo corrige una vez; si insiste, se descarta su
+   respuesta y la conversación escala.
+
+**Medido** con Haiku real y un juez Sonnet que ve el corpus completo: exactitud
+del 92 % en preguntas con respuesta, abstención correcta del 94 % en preguntas sin
+respuesta e invención global del 3 % (1 de 40: una negación sin cifras, que la
+capa 3 no puede ver).
+
+**Si el LLM falla o tarda:** 20 s de límite por llamada con un reintento propio.
+Si falla de nuevo, el paciente recibe un mensaje fijo y la conversación queda
+`escalada`, con el error en la traza. Una conversación escalada no vuelve a llamar
+al LLM. Si se agotan los reintentos de infraestructura (por ejemplo, MongoDB
+caído), el mensaje queda `fallido` sin bloquear la conversación (D-14).
+
+**Cómo se verificó:**
+- **174 tests** contra PostgreSQL y MongoDB reales, sin LLM real.
+- **Goldset de 28 conversaciones:** cubre cada código de error, las fallas del
+  LLM, duplicados, concurrencia, zona horaria y la barandilla. 27 se corren con
+  el LLM falso y 10 también con Haiku real.
+- **Harness de volumen:** 2.100 mensajes con duplicados, disputas por horario y
+  caos del LLM y de MongoDB, verificando 7 invariantes.
+
+Tres bugs reales los encontraron los harness, no los tests: el historial en
+reintentos (D-22), el umbral en 0 por una variable vacía (D-25) y el ejemplo del
+enunciado sin agenda (D-10).
+
+## 6. Costo
+
+**Costo por turno, medido con Haiku 4.5** a $1 de entrada y $5 de salida por
+millón de tokens (página oficial, 2026-10-03):
+
+| Medición | Tokens por turno | USD por turno |
+|---|---|---:|
+| 40 preguntas informativas (e2e del RAG) | ~1.600–4.500 de entrada | 0,0043 de promedio |
+| Conversación del enunciado, 3 turnos | 1.650–6.960 de entrada | 0,0053 de promedio |
+| Prueba de humo con disponibilidad | 4.451 + 304 | 0,0060 |
+
+- **Una conversación típica** (pregunta, elección y confirmación) cuesta unos
+  **USD 0,016**. Una conversación escalada no cuesta nada por cada mensaje
+  posterior, porque no llama al LLM.
+- **A escala:** 20.000 turnos diarios × USD 0,005 × 30 días ≈ **USD 3.000 al
+  mes de LLM** (entre 2.400 y 3.600), frente a unos **USD 512 de
+  infraestructura**. El LLM es cerca del **85 %** del total, unos USD 70 por
+  clínica al mes.
+
+**Cómo lo reduciría, en orden de impacto:**
+1. **Achicar lo que se le manda al modelo.** `consultar_disponibilidad` devuelve
+   el día completo con el nombre del profesional en cada bloque. Agrupar por
+   profesional reduce los tokens de entrada de los turnos de agenda.
+2. **Guardar los `horario_id` ofrecidos en el historial.** Evita la segunda
+   consulta del flujo de agendamiento (D-16): una llamada menos por cita.
+3. **Historial de 10 mensajes en lugar de 20,** midiendo con el goldset real que
+   no se pierda contexto.
+4. **Prompt caching.** No aplica hoy porque Haiku 4.5 exige prefijos de 4.096
+   tokens y el nuestro mide ~1.500 (D-21). Con instrucciones por clínica o con
+   un modelo de mínimo 512 tokens, la lectura en caché costaría el 10 % del
+   precio base.
+5. **Infraestructura:** un NAT, `db.t4g.large` y Savings Plans ahorran ~USD 100
+   al mes, poco al lado del LLM.
+
+## 7. Trade-offs
+
+| Decisión | Lo que se ganó | Lo que se pagó |
+|---|---|---|
+| `key_strict_fifo` para la serie por conversación (D-03) | Orden y exclusión garantizados por la base, sin conexiones retenidas | Orden de llegada, no de `timestamp`; un trabajo fallido bloquea la conversación (de ahí D-14) |
+| El historial que ve el modelo es solo texto (D-16) | Menos tokens por turno | Una consulta de disponibilidad extra al agendar |
+| El umbral del RAG está calibrado sobre el mismo goldset (D-25) | Un valor medido y no intuido | Sin datos apartados; margen de 0,001 |
+| Barandilla numérica determinista (D-26) | Sin costo ni latencia, explicable y testeable | No ve afirmaciones sin cifras |
+| Estado de la conversación que solo sube (D-05) | La bandeja no esconde citas por un "gracias" | Una conversación con cita antigua sigue como `cita_agendada` |
+| Sin coincidencia difusa en sedes y especialidades (D-11) | Nunca agenda en el lugar equivocado | El modelo a veces tiene que preguntar |
+| Embeddings locales en la prueba | Sin costo ni red, y tests rápidos | El trabajador carga 118 MB al arrancar |
+| Teléfono enmascarado en la API (D-27) | Sin datos sensibles expuestos sin autenticación | El coordinador no puede llamar desde la interfaz |
+| SQS en producción en lugar de pg-boss | Operabilidad y escalado por profundidad de la cola | Una bandeja de salida y un relay más que mantener |
+
+## 8. Uso de IA
+
+Usé Claude Code para escribir el código, los tests y los harness. El diseño, las
+decisiones y la revisión de cada paso fueron míos. `NOTAS_IA.md` registra, en el
+momento en que pasaron, los errores de la IA que se corrigieron. Los más
+instructivos:
+
+- **Errores de especificación:** el plan inicial tenía un índice sobre un campo
+  que no existía, un trabajador sin acceso al texto del mensaje y ningún lugar
+  para el costo.
+- **Errores de arquitectura:** `aplicacion/` importaba infraestructura,
+  contra la regla del propio plan.
+- **Errores que solo vieron los harness:** el historial en reintentos (D-22),
+  el umbral efectivo en 0 por una variable vacía, y un caso de goldset que
+  esperaba un único camino del modelo real.
+- **Mediciones que casi engañan:** una instrumentación con `sed` que no se
+  aplicó y "probaba" que el índice único nunca actuaba; una prueba de caos de
+  8 s que no provocó ni un reintento; un juez LLM que se contradijo.
+- **Lo que validé a mano:** cada cifra de costo (páginas oficiales y Price
+  List API), las fichas de los modelos de embeddings, la API instalada de
+  pg-boss antes de diseñar la cola y los veredictos del juez leyendo los casos.
+
+La lección general: un número vale si se verifica cómo se obtuvo. Por eso las
+corridas guardan su configuración, los harness cuentan los reintentos y el juez
+tiene una regla de consistencia.
+
+## 9. Qué haría distinto con más tiempo o en producción
+
+- **Evaluación:**
+  - un goldset más grande y revisado por la clínica (hoy todos los casos tienen
+    `validado_por: null`);
+  - un conjunto apartado para el umbral del RAG;
+  - correr el goldset real en cada cambio de prompt o de modelo, con el costo
+    reportado;
+  - un verificador LLM como cuarta capa contra afirmaciones sin cifras (D-26),
+    si la tasa de invención real lo justifica.
+- **Observabilidad:** OpenTelemetry con un span por turno, por llamada al LLM y
+  por herramienta, y un panel de costo por clínica y de tasas de escalamiento,
+  barandilla y falla.
+- **Varias clínicas:** el `clinica_id` con RLS de la sección 3, límites de tasa
+  por clínica y su configuración propia (prompt, zona horaria, documentos).
+- **Producto:** cancelar y reprogramar citas (hoy las cancela un asesor),
+  autenticación del coordinador con el teléfono completo para los autorizados, y
+  verificación de la firma del webhook de Meta.
+- **Tratamiento de datos:** los mensajes de los pacientes van a un proveedor
+  externo de LLM. El teléfono nunca se envía, pero el nombre sí (es necesario
+  para agendar), y el texto libre puede traer síntomas. En producción haría
+  falta:
+  - consentimiento informado al primer mensaje (en Colombia, la Ley 1581 de
+    2012 trata los datos de salud como sensibles);
+  - un acuerdo de tratamiento de datos con el proveedor, o usar Claude por
+    Amazon Bedrock para que el tráfico no salga de la cuenta de AWS;
+  - retención limitada de `mensajes` y `turnos`, con TTL o archivo en S3.
+
+---
+
+## Apéndice · Registro de decisiones y ambigüedades del enunciado
+
+Escrito en el momento de cada decisión, en orden. Las revisadas conservan su versión descartada y el porqué.
 
 ### D-01 · El texto del mensaje entrante vive en PostgreSQL
 `mensajes_entrantes` guarda `texto` y `enviado_en` (el `timestamp` del webhook),
@@ -345,15 +753,3 @@ afirmaciones sin cifras, a costa de una llamada más por respuesta informativa.
     navegador;
   - el simulador permite fijar la hora del mensaje, para reproducir el ejemplo
     del enunciado.
-
-## Secciones pendientes
-
-- Arquitectura general
-- Modelo de datos
-- Nube (AWS)
-- Pipeline de IA
-- Confiabilidad
-- Costo
-- Trade-offs
-- Uso de IA (se alimenta de `NOTAS_IA.md`)
-- Qué haría distinto

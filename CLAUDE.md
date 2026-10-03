@@ -212,9 +212,6 @@ Cada paso termina con sus tests y sus casos del goldset en verde antes de pasar 
 - No redactar `DECISIONS.md` completo sin el director: las decisiones y los trade-offs son suyos. Proponer borrador por sección y esperar revisión.
 - Cifras de costo (LLM e infraestructura AWS): se consultan en la página de precios vigente y se anotan con fecha y supuestos. No se escriben de memoria.
 
-## Pendiente para DECISIONS.md
+## DECISIONS.md
 
-- Diseño AWS para 50 clínicas y 20.000 mensajes al día: Fargate (API y trabajador), SQS con cola de mensajes fallidos, RDS PostgreSQL Multi-AZ, MongoDB Atlas, Secrets Manager, CloudWatch. Separación por clínica con `tenant_id` y seguridad por fila.
-- `pg-boss` en la prueba, SQS en producción: declarar el porqué.
-- Embedding local en la prueba; en producción, evaluar servicio gestionado.
-- Los mensajes de pacientes salen a un proveedor externo de LLM: tratamiento de datos.
+Secciones 1 a 9 (borrador en revisión del director) y, como apéndice, el registro D-01 a D-27 escrito en el momento de cada decisión. Cifras de costo con fecha y fuente.

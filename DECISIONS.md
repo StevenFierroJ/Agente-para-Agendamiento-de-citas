@@ -48,13 +48,21 @@ El seed genera 14 días calendario desde hoy (hora de Colombia). `SEED_DESDE`
 actual como `timestamp`. "Fecha pasada" y "horario pasado" se validan contra el
 `timestamp` del mensaje, no contra el reloj del servidor.
 
-### D-05 · Transiciones de estado de la conversación
-- El estado de la conversación es el estado final de su último turno.
+### D-05 · Transiciones de estado de la conversación (revisada)
+- El estado de la conversación solo sube de prioridad:
+  `escalada` > `cita_agendada` > `resuelta_por_ia` > `abierta`. El estado final
+  de cada turno se guarda aparte, en su traza en MongoDB.
+- **Por qué:** la bandeja es la herramienta del coordinador y debe mostrar lo
+  más importante que pasó en la conversación, no lo último. Con la primera
+  versión ("el estado del último turno"), un "gracias" después de agendar bajaba
+  la conversación a `resuelta_por_ia` y la escondía del filtro `cita_agendada`.
+  Como cancelar no está en el alcance, nada legítimo deshace una cita.
+- **Costo:** un paciente con una cita anterior que vuelve con otra consulta sigue
+  apareciendo como `cita_agendada`. Lo compensan la bandeja ordenada por último
+  mensaje y el detalle con el estado de cada turno.
 - `escalada` es terminal: los mensajes siguientes reciben un mensaje fijo y no
   pasan por el LLM. Reabrir una conversación escalada es trabajo del humano y
   queda fuera del alcance.
-- `abierta` es el estado de una conversación recién creada que aún no tiene turno
-  terminado.
 
 ### D-06 · Seed idempotente por llaves naturales
 `sedes.nombre`, `especialidades.nombre`, `profesionales.nombre` y

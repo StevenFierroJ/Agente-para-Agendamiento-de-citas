@@ -22,9 +22,14 @@ describe('estado final del turno', () => {
 });
 
 describe('estado de la conversación', () => {
-  it('toma el del último turno', () => {
-    expect(siguienteEstadoConversacion('cita_agendada', 'resuelta_por_ia')).toBe('resuelta_por_ia');
-    expect(siguienteEstadoConversacion('abierta', 'cita_agendada')).toBe('cita_agendada');
+  it('sube de prioridad con el turno', () => {
+    expect(siguienteEstadoConversacion('abierta', 'resuelta_por_ia')).toBe('resuelta_por_ia');
+    expect(siguienteEstadoConversacion('resuelta_por_ia', 'cita_agendada')).toBe('cita_agendada');
+    expect(siguienteEstadoConversacion('cita_agendada', 'escalada')).toBe('escalada');
+  });
+
+  it('no baja: un "gracias" después de agendar no borra la cita de la bandeja', () => {
+    expect(siguienteEstadoConversacion('cita_agendada', 'resuelta_por_ia')).toBe('cita_agendada');
   });
 
   it('escalada es terminal', () => {

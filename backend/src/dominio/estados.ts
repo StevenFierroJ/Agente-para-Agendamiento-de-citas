@@ -20,7 +20,14 @@ export function estadoFinalDelTurno(hechos: HechosDelTurno): EstadoFinalTurno {
   return 'resuelta_por_ia';
 }
 
-/** `escalada` es terminal (D-05); en otro caso, la conversación toma el estado de su último turno. */
+const PRIORIDAD: Record<EstadoConversacion, number> = { abierta: 0, resuelta_por_ia: 1, cita_agendada: 2, escalada: 3 };
+
+/**
+ * El estado de la conversación solo sube de prioridad (D-05):
+ * escalada > cita_agendada > resuelta_por_ia > abierta. Un "gracias" después de
+ * agendar no borra de la bandeja que hubo una cita. El estado de cada turno se
+ * guarda aparte, en su traza.
+ */
 export function siguienteEstadoConversacion(actual: EstadoConversacion, final: EstadoFinalTurno): EstadoConversacion {
-  return actual === 'escalada' ? 'escalada' : final;
+  return PRIORIDAD[final] > PRIORIDAD[actual] ? final : actual;
 }

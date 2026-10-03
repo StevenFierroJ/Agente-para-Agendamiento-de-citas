@@ -82,6 +82,22 @@ Dermatología no atiende en la Sede Norte los martes y jueves, y la Sede Sur sol
 tiene dermatología en la tarde esos días. Así el ejemplo del enunciado ("mañana en
 la tarde", martes 6) tiene respuesta en una sede y `sin_horarios` en la otra.
 
+### D-11 · Cómo se reconoce una sede o especialidad que nombra el modelo
+Se compara sin mayúsculas, tildes ni espacios de más, y se acepta la sede sin la
+palabra "sede" ("norte" → Sede Norte). No hay coincidencia aproximada: "derma" no
+es Dermatología. Una coincidencia difusa podría agendar en el lugar equivocado;
+es preferible devolver `especialidad_inexistente` con la lista válida y que el
+modelo pregunte.
+
+### D-12 · Agendar y escalar en el mismo turno
+Si en un turno se agendó una cita y además se escaló, el estado final es
+`escalada`: la cita queda hecha, pero hay algo que un humano tiene que mirar.
+
+### D-13 · Un horario "pasado" es uno que ya empezó
+Se compara el inicio del bloque contra el `timestamp` del mensaje. El reintento
+de un turno que ya agendó se revisa **antes** que la hora: si la cita es de esta
+conversación, se devuelve aunque el reintento llegue cuando el bloque ya empezó.
+
 ## Secciones pendientes
 
 - Arquitectura general

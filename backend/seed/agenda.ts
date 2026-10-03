@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon';
+import { ZONA_COLOMBIA } from '../src/dominio/fechas.js';
 
-export const ZONA_COLOMBIA = 'America/Bogota';
+export { ZONA_COLOMBIA };
 export const DURACION_BLOQUE_MIN = 30;
 export const DIAS_DE_AGENDA = 14;
 

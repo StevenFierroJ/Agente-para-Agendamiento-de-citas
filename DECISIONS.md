@@ -92,6 +92,11 @@ mensaje (D-23).
 Diseño para 50 clínicas y 20.000 mensajes al día (~0,23 por segundo en promedio y
 2 a 3 en hora pico).
 
+![Arquitectura en AWS](docs/aws-arquitectura.png)
+
+Fuente del diagrama (Mermaid; la imagen se genera con
+`npx @mermaid-js/mermaid-cli -i docs/aws-arquitectura.mmd -o docs/aws-arquitectura.png -b white -s 2`):
+
 ```mermaid
 flowchart LR
     meta["WhatsApp Cloud API<br/>(Meta)"] -->|webhook HTTPS<br/>firma X-Hub-Signature-256| alb

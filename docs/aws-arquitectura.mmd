@@ -1,0 +1,32 @@
+flowchart LR
+    meta["WhatsApp Cloud API<br/>(Meta)"] -->|webhook HTTPS<br/>firma X-Hub-Signature-256| alb
+    coord["Coordinador<br/>(navegador)"] -->|OIDC de la empresa| alb
+    subgraph aws["AWS us-east-1 · VPC en 2 zonas de disponibilidad"]
+        alb["ALB<br/>autenticación OIDC para la bandeja"]
+        subgraph privadas["Subredes privadas"]
+            api["ECS Fargate · API ×2<br/>webhook, lectura, frontend estático"]
+            trab["ECS Fargate · trabajador ×2..N<br/>turnos + e5-small en proceso<br/>+ relay de la bandeja de salida"]
+            rds[("RDS PostgreSQL Multi-AZ<br/>+ pgvector")]
+        end
+        sqs[["SQS FIFO<br/>MessageGroupId = conversación"]]
+        dlq[["DLQ"]]
+        nat["NAT Gateway ×2"]
+        sm["Secrets Manager"]
+        cw["CloudWatch<br/>logs · métricas · alarmas"]
+    end
+    atlas[("MongoDB Atlas M10<br/>mensajes y turnos")]
+    anthropic["API de Anthropic<br/>Claude Haiku 4.5"]
+
+    alb --> api
+    api -->|"1 transacción: mensaje + bandeja de salida"| rds
+    trab -->|relay| sqs
+    sqs --> trab
+    sqs -. "tras 4 intentos" .-> dlq
+    trab --> rds
+    trab -->|PrivateLink| atlas
+    api -->|PrivateLink| atlas
+    trab --> nat --> anthropic
+    sm -.-> api
+    sm -.-> trab
+    api -.-> cw
+    trab -.-> cw

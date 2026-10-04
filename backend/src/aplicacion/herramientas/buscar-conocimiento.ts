@@ -17,7 +17,8 @@ export function crearBuscarConocimiento(embeddings: EmbeddingClient, base: BaseC
   return {
     definicion: definir(
       'buscar_conocimiento',
-      'Busca en los documentos de la clínica (horarios, sedes, especialidades, preparación de exámenes, cancelación, cobertura y pagos, documentos para la cita). Responde solo con lo que devuelva.',
+      'Busca en los documentos de la clínica (horarios, sedes, especialidades, preparación de exámenes, cancelación, cobertura y pagos, documentos para la cita). ' +
+        'Devuelve los 4 fragmentos más cercanos: una búsqueda por tema. Si la pregunta mezcla varios (servicios y horarios, o las dos sedes), busca una vez por cada uno. Responde solo con lo que devuelva.',
       Argumentos,
     ),
     async ejecutar(argumentos) {

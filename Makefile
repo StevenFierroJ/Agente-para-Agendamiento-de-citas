@@ -9,8 +9,8 @@ up:
 	docker compose up --build -d
 	@echo ""
 	@echo "Listo:"
-	@echo "  Interfaz   http://localhost:8080   (bandeja, detalle, simulador)"
-	@echo "  API        http://localhost:3000   (POST /webhooks/messages, GET /conversaciones)"
+	@echo "  Interfaz   http://localhost:8080   (conversaciones, trazas, agenda, conocimiento, simulador)"
+	@echo "  API        http://localhost:3000   (POST /webhooks/messages, GET /conversaciones, /turnos, /agenda, /conocimiento)"
 	@echo "  Logs       make logs     ·     Detener   make down"
 
 logs:

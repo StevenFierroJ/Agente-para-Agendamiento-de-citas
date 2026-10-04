@@ -1,0 +1,70 @@
+{
+  "id": "guardrail-hora-sin-consultar",
+  "descripcion": "D-38: el paciente elige un día y el modelo ofrece horas sacadas de las franjas que él mismo mencionó antes, sin consultar. Las horas solo las respaldan los datos del turno (prompt y herramientas): la barandilla pide corregir, el modelo consulta el día y ofrece lo que devolvió.",
+  "cubre": [
+    "dato_sin_respaldo_corregido"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.hora-sin-consultar.1",
+        "from": "+573000000037",
+        "text": "¿Qué disponibilidad hay de dermatología esta semana?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [202],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            { "nombre": "resumir_disponibilidad", "argumentos": { "especialidad": "Dermatología", "desde": "2026-10-05", "hasta": "2026-10-09" } }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Sede Norte: lunes 5, miércoles 7 y viernes 9 de 2:00 a 6:00 p. m. Sede Sur: martes 6 y jueves 8 de 8:00 a 12:00 y de 2:00 a 5:00 p. m. ¿Qué día prefieres?"
+        }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "resumir_disponibilidad", "error": null }],
+        "estado_final": "resuelta_por_ia"
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.hora-sin-consultar.2",
+        "from": "+573000000037",
+        "text": "El miércoles 7",
+        "timestamp": "2026-10-05T14:02:00Z"
+      },
+      "http": [202],
+      "guion": [
+        { "tipo": "texto", "texto": "El miércoles 7 en la Sede Norte tengo 2:00 p. m. y 5:00 p. m. ¿Cuál prefieres?" },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            { "nombre": "consultar_disponibilidad", "argumentos": { "especialidad": "Dermatología", "sede": "Sede Norte", "fecha": "2026-10-07" } }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "El miércoles 7 en la Sede Norte hay dermatología con la Dra. Camila Restrepo de 2:00 a 5:30 p. m., cada media hora. ¿Qué hora prefieres?"
+        }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "consultar_disponibilidad", "error": null }],
+        "controles": ["corregir"],
+        "estado_final": "resuelta_por_ia",
+        "respuesta_contiene": ["5:30 p. m."]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": { "+573000000037": { "estado": "resuelta_por_ia", "citas_activas": 0 } },
+    "citas_activas_total": 0
+  }
+}

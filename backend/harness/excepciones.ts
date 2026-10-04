@@ -29,6 +29,7 @@ export const SITUACIONES = [
   'escalamiento_prometido',       // "te paso con un asesor" sin la herramienta: el código escala (D-29)
   'cita_afirmada_sin_agendar',    // "tu cita está agendada" sin agendar_cita: corrige o se descarta (D-29)
   'respuesta_vacia_tras_accion',  // texto vacío después de escalar o agendar: el código redacta (D-29)
+  'abstencion_sin_buscar',        // "no tengo esa información" sin buscar en los documentos: se pide buscar (D-41)
   // Hora de Colombia
   'zona_horaria',
   // Caminos felices (para que el goldset también diga que lo normal funciona)

@@ -45,19 +45,22 @@ export function Bandeja({ seleccionada, onSeleccionar }: { seleccionada: number 
   const hayMas = cursor === null ? Boolean(datos?.siguiente) : cursor !== '';
 
   return (
+    <div className="pagina">
+      <header className="pagina-cabecera">
+        <div>
+          <h1>Conversaciones</h1>
+          <p className="tenue">Qué respondió el asistente, qué herramientas usó y cuánto costó cada respuesta.</p>
+        </div>
+      </header>
     <div className="bandeja-con-detalle">
-      <section className="bandeja">
-        <label>
-          Estado{' '}
-          <select value={estado ?? ''} onChange={(e) => cambiarEstado((e.target.value || null) as Estado | null)}>
-            <option value="">Todas</option>
-            {ESTADOS.map((e) => (
-              <option key={e} value={e}>
-                {etiquetaEstado(e)}
-              </option>
-            ))}
-          </select>
-        </label>
+      <section className="tarjeta bandeja">
+        <div className="filtros" role="group" aria-label="Filtrar por estado">
+          {[null, ...ESTADOS].map((e) => (
+            <button key={e ?? 'todas'} type="button" className={estado === e ? 'filtro activo' : 'filtro'} onClick={() => cambiarEstado(e)}>
+              {e ? etiquetaEstado(e) : 'Todas'}
+            </button>
+          ))}
+        </div>
         {error && <Aviso error={error} onReintentar={recargar} />}
         {cargando && !datos ? (
           <p className="tenue">Cargando conversaciones…</p>
@@ -89,7 +92,8 @@ export function Bandeja({ seleccionada, onSeleccionar }: { seleccionada: number 
           </button>
         )}
       </section>
-      <div className="panel">{seleccionada ? <Detalle id={seleccionada} /> : <p className="tenue">Elige una conversación.</p>}</div>
+      <div className="tarjeta panel">{seleccionada ? <Detalle id={seleccionada} /> : <p className="vacio">Elige una conversación para ver sus mensajes y trazas.</p>}</div>
+    </div>
     </div>
   );
 }

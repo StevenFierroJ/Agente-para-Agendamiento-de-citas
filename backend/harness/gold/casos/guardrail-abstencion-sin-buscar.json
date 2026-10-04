@@ -1,0 +1,55 @@
+{
+  "id": "guardrail-abstencion-sin-buscar",
+  "descripcion": "Caso real (D-41): '¿cuánto vale una cita con tórax si tengo Colsanitas?'. El modelo respondió de memoria que no tiene información de coberturas, sin buscar; el documento dice que la clínica atiende Colsanitas. La barandilla pide buscar; el modelo busca y responde con lo que dicen los documentos.",
+  "cubre": [
+    "abstencion_sin_buscar",
+    "respuesta_con_documentos"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.abstencion.1",
+        "from": "+573000000039",
+        "text": "Hola quisiera saber cuanto vale una cita con torax sabiendo que tengo colsanitas",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [202],
+      "guion": [
+        {
+          "tipo": "texto",
+          "texto": "No tengo información sobre precios de citas ni sobre coberturas específicas de seguros. Además, no ofrecemos la especialidad de Tórax."
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            { "nombre": "buscar_conocimiento", "argumentos": { "pregunta": "medicina prepagada Colsanitas cobertura" } }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "La clínica atiende pacientes de Colsanitas: lleva tu carné y documento de identidad. No ofrecemos tórax; contamos con Dermatología, Medicina general y Pediatría. El precio de la consulta no lo tengo; un asesor te lo puede confirmar."
+        }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "buscar_conocimiento", "error": null }],
+        "controles": ["corregir"],
+        "estado_final": "resuelta_por_ia",
+        "respuesta_contiene": ["Colsanitas"]
+      },
+      "espera_real": {
+        "estado_final": ["resuelta_por_ia", "escalada"],
+        "herramientas_incluye": ["buscar_conocimiento"],
+        "herramientas_excluye": ["agendar_cita"]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": { "+573000000039": { "estado": "resuelta_por_ia", "citas_activas": 0 } },
+    "citas_activas_total": 0
+  }
+}

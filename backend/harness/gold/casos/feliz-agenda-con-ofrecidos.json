@@ -1,0 +1,107 @@
+{
+  "id": "feliz-agenda-con-ofrecidos",
+  "descripcion": "D-35: después de consultar un día, el turno siguiente recibe en el prompt los horarios ofrecidos con su horario_id. El paciente elige la hora y el modelo agenda a la primera, sin volver a consultar.",
+  "cubre": [
+    "cita_agendada"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.ofrecidos.1",
+        "from": "+573000000036",
+        "text": "¿Qué horarios hay con dermatología el miércoles 7 en la Sede Norte?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "El miércoles 7 en la Sede Norte hay dermatología con la Dra. Camila Restrepo desde las 2:00 hasta las 5:30 p. m. ¿Cuál prefieres?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.ofrecidos.2",
+        "from": "+573000000036",
+        "text": "A las 3, a nombre de Steven Fierro",
+        "timestamp": "2026-10-05T14:02:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "15:00",
+                "nombre_paciente": "Steven Fierro"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo, Steven: tu cita de dermatología es el miércoles 7 a las 3:00 p. m. en la Sede Norte con la Dra. Camila Restrepo."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "estado_final": "cita_agendada",
+        "prompt_contiene": [
+          "Horarios ya ofrecidos en esta conversación",
+          "2026-10-07T15:00 · Dermatología · Sede Norte · Dra. Camila Restrepo",
+          "2026-10-07T17:30 · Dermatología · Sede Norte · Dra. Camila Restrepo"
+        ]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000036": {
+        "estado": "cita_agendada",
+        "citas_activas": 1
+      }
+    },
+    "citas_activas_total": 1
+  }
+}

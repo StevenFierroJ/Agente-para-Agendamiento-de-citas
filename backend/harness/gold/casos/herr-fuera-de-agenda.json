@@ -1,0 +1,49 @@
+{
+  "id": "herr-fuera-de-agenda",
+  "descripcion": "Caso real (D-42): el paciente pide dermatología para la primera semana de enero de 2027; la agenda solo está publicada hasta el viernes 16 de octubre. La herramienta responde fuera_de_agenda (no sin_horarios) y el modelo dice que la agenda aún no se ha abierto, no que está llena. El prompt trae hasta dónde llega la agenda.",
+  "cubre": [
+    "fuera_de_agenda"
+  ],
+  "modos": [
+    "guion",
+    "real"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.fuera-de-agenda.1",
+        "from": "+573000000040",
+        "text": "Necesito cita con el dermatólogo, ¿qué días tienen para la primera semana de enero de 2027?",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [202],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            { "nombre": "resumir_disponibilidad", "argumentos": { "especialidad": "Dermatología", "desde": "2027-01-01", "hasta": "2027-01-07" } }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Todavía no hemos abierto la agenda de enero: hay horarios publicados hasta el viernes 16 de octubre. ¿Te sirve una fecha antes de ese día, o prefieres que un asesor te avise cuando se abra?"
+        }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "resumir_disponibilidad", "error": "fuera_de_agenda" }],
+        "estado_final": "resuelta_por_ia",
+        "prompt_contiene": ["Hay horarios publicados hasta el viernes 16 de octubre de 2026 (2026-10-16)"]
+      },
+      "espera_real": {
+        "estado_final": ["resuelta_por_ia", "escalada"],
+        "herramientas_excluye": ["agendar_cita"],
+        "respuesta_no_contiene": ["no hay disponibilidad"]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": { "+573000000040": { "estado": "resuelta_por_ia", "citas_activas": 0 } },
+    "citas_activas_total": 0
+  }
+}

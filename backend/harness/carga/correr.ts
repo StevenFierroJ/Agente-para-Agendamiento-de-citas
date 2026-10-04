@@ -69,17 +69,30 @@ async function main(): Promise<number> {
 
   // Horarios desde el martes 6 (los mensajes son del lunes): ninguno está en el pasado.
   const poolAux = new pg.Pool({ connectionString: URL_POSTGRES_HARNESS });
-  const horarios = (await poolAux.query<{ id: number }>("SELECT id FROM horarios WHERE inicio >= '2026-10-06T05:00:00Z' ORDER BY id")).rows.map((r) => r.id);
+  const filasHorarios = (
+    await poolAux.query<{ id: number; especialidad: string; sede: string; fecha: string; hora: string }>(
+      `SELECT h.id, e.nombre AS especialidad, s.nombre AS sede,
+              to_char(h.inicio AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS fecha,
+              to_char(h.inicio AT TIME ZONE 'America/Bogota', 'HH24:MI') AS hora
+         FROM horarios h JOIN profesionales p ON p.id = h.profesional_id
+         JOIN especialidades e ON e.id = p.especialidad_id JOIN sedes s ON s.id = h.sede_id
+        WHERE h.inicio >= '2026-10-06T05:00:00Z' ORDER BY h.id`,
+    )
+  ).rows;
   await poolAux.end();
+  const horarios = filasHorarios.map((r) => r.id);
+  // agendar_cita nombra el horario por especialidad, sede, fecha y hora (D-37).
+  const enHora = new Map(filasHorarios.map(({ id, ...resto }) => [id, resto]));
   const disputados = horarios.slice(0, config.contencion);
   const libres = horarios.slice(config.contencion);
 
   const { envios, grupos } = generar(config, azar, disputados, libres);
+  await ofrecerLoQueSeAgenda(envios);
   const caos = new Set(envios.filter(() => azar() < config.caosLlm).map((e) => e.messageId));
 
   const llm = new LlmGuionado({
     latenciaMs: () => config.latenciaMin + Math.floor(azar() * (config.latenciaMax - config.latenciaMin + 1)),
-    porDefecto: responderPorDefecto(caos),
+    porDefecto: responderPorDefecto(caos, enHora),
   });
   const sistema = await levantarSistema({
     databaseUrl: URL_POSTGRES_HARNESS,
@@ -212,6 +225,29 @@ async function main(): Promise<number> {
 // Generación
 // ---------------------------------------------------------------------------
 
+/**
+ * Los AGENDAR del guion van directo a agendar_cita, sin consulta previa: se marcan
+ * como ya ofrecidos a ese teléfono (D-34), para medir la contención y no la regla
+ * de ofrecidos, que tiene sus tests y su caso de goldset.
+ */
+async function ofrecerLoQueSeAgenda(envios: readonly Envio[]): Promise<void> {
+  const pool = new pg.Pool({ connectionString: URL_POSTGRES_HARNESS });
+  try {
+    for (const e of envios) {
+      const [orden, horario] = e.texto.split(' ');
+      if (orden !== 'AGENDAR') continue;
+      const { rows } = await pool.query<{ id: number }>(
+        `INSERT INTO conversaciones (telefono, ultimo_mensaje_en) VALUES ($1, now())
+         ON CONFLICT (telefono) DO UPDATE SET telefono = EXCLUDED.telefono RETURNING id`,
+        [e.telefono],
+      );
+      await pool.query('INSERT INTO horarios_ofrecidos (conversacion_id, horario_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [rows[0]!.id, Number(horario)]);
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
 function generar(config: Config, azar: () => number, disputados: number[], libres: number[]) {
   const base = DateTime.fromISO('2026-10-05T13:00:00Z');
   const envios: Envio[] = [];
@@ -266,7 +302,10 @@ function generar(config: Config, azar: () => number, disputados: number[], libre
  * Después de un resultado de herramienta, responde texto. Las etiquetas de
  * `caos` fallan dos veces (llamada y reintento) para forzar el escalamiento.
  */
-function responderPorDefecto(caos: ReadonlySet<string>) {
+function responderPorDefecto(
+  caos: ReadonlySet<string>,
+  enHora: ReadonlyMap<number, { especialidad: string; sede: string; fecha: string; hora: string }>,
+) {
   const fallas = new Map<string, number>();
   return (pedido: PedidoLlm): RespuestaGuionada => {
     if (caos.has(pedido.etiqueta)) {
@@ -282,7 +321,7 @@ function responderPorDefecto(caos: ReadonlySet<string>) {
     if (orden === 'AGENDAR') {
       return {
         tipo: 'herramientas',
-        llamadas: [{ nombre: 'agendar_cita', argumentosCrudos: JSON.stringify({ horario_id: Number(horario), nombre_paciente: nombre.join(' ') }) }],
+        llamadas: [{ nombre: 'agendar_cita', argumentosCrudos: JSON.stringify({ ...enHora.get(Number(horario)), nombre_paciente: nombre.join(' ') }) }],
       };
     }
     if (orden === 'CONSULTAR') {

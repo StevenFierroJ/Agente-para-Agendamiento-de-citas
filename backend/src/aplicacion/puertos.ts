@@ -141,6 +141,11 @@ export interface ItemCatalogo {
 export interface Catalogo {
   sedes: ItemCatalogo[];
   especialidades: ItemCatalogo[];
+  /**
+   * Último día con horarios publicados (YYYY-MM-DD, hora de Colombia), o null si
+   * no hay agenda. Después de ese día la agenda no está llena: todavía no existe (D-42).
+   */
+  finDeAgenda: string | null;
 }
 
 /** PostgreSQL: mensajes entrantes, estado de las conversaciones y catálogo. */
@@ -151,6 +156,20 @@ export interface RepositorioMensajes {
   catalogo(): Promise<Catalogo>;
   /** Citas activas de la conversación antes del turno: una confirmación sobre ellas no es una afirmación falsa. */
   citasActivas(conversacionId: number): Promise<number>;
+  /**
+   * Horarios que consultar_disponibilidad ya le mostró a la conversación y que
+   * siguen libres y sin empezar: van al prompt para que el modelo agende con el
+   * id exacto en lugar de deducirlo (D-35).
+   */
+  horariosOfrecidosVigentes(conversacionId: number, ahora: Date, limite: number): Promise<HorarioOfrecido[]>;
+}
+
+export interface HorarioOfrecido {
+  horarioId: number;
+  inicio: Date;
+  especialidad: string;
+  sede: string;
+  profesional: string;
 }
 
 /**
@@ -175,10 +194,13 @@ export interface RegistroMensaje {
   guardado_en: Date;
 }
 
+// `borrador`: la respuesta del modelo que activó el control. Sin él, la traza dice
+// que se bloqueó algo pero no qué (D-40).
 export type ControlTurno =
-  | { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar' }
-  | { tipo: 'escalamiento_prometido'; datos: string[]; accion: 'escalar' }
-  | { tipo: 'cita_no_agendada'; datos: string[]; accion: 'corregir' | 'descartar' }
+  | { tipo: 'datos_sin_respaldo'; datos: string[]; accion: 'corregir' | 'descartar'; borrador?: string }
+  | { tipo: 'escalamiento_prometido'; datos: string[]; accion: 'escalar'; borrador?: string }
+  | { tipo: 'cita_no_agendada'; datos: string[]; accion: 'corregir' | 'descartar'; borrador?: string }
+  | { tipo: 'abstencion_sin_busqueda'; datos: string[]; accion: 'corregir'; borrador?: string }
   // El verificador falló: se decidió solo con las reglas. Queda en la traza, no se esconde.
   | { tipo: 'verificador_no_disponible'; datos: string[]; accion: 'solo_reglas' };
 
@@ -212,6 +234,7 @@ export interface AlmacenConversaciones {
 export interface HorarioDelDia {
   horarioId: number;
   inicio: Date;
+  fin: Date;
   profesional: string;
   ocupado: boolean;
 }
@@ -219,6 +242,7 @@ export interface HorarioDelDia {
 export interface HorarioParaAgendar {
   id: number;
   inicio: Date;
+  ofrecido: boolean;
   especialidad: string;
   sede: string;
   profesional: string;
@@ -226,11 +250,15 @@ export interface HorarioParaAgendar {
 
 export type ResultadoAgendar =
   | { tipo: 'agendada' | 'ya_era_tuya'; citaId: number; horario: HorarioParaAgendar }
-  | { tipo: 'error'; error: 'horario_inexistente' | 'horario_pasado' | 'horario_ocupado' };
+  | { tipo: 'error'; error: 'horario_inexistente' | 'horario_no_ofrecido' | 'horario_pasado' | 'horario_ocupado' };
 
 /** PostgreSQL: la agenda. */
 export interface Agenda {
   horariosDelDia(especialidadId: number, sedeId: number, desde: Date, hasta: Date): Promise<HorarioDelDia[]>;
+  /** Registra los horarios que se le mostraron al modelo en una conversación: los únicos que podrá agendar (D-34). */
+  registrarOfrecidos(conversacionId: number, horarioIds: readonly number[]): Promise<void>;
+  /** Horarios de una especialidad en una sede que empiezan exactamente en `inicio` (uno por profesional). */
+  horariosQueEmpiezan(especialidadId: number, sedeId: number, inicio: Date): Promise<{ horarioId: number; profesional: string }[]>;
   /**
    * Agenda dentro de una transacción. `decidir` es la regla del dominio con lo
    * que hay en la base; si dice agendar y otro paciente ganó la carrera, el

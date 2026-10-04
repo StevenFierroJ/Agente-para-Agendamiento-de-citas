@@ -24,7 +24,7 @@ make up
 
 | Qué | Dónde |
 |---|---|
-| **Interfaz** (bandeja, detalle, simulador) | **http://localhost:8080** |
+| **Interfaz** (conversaciones, trazas, agenda, base de conocimiento, simulador) | **http://localhost:8080** |
 | API | http://localhost:3000 |
 
 Sin `make`, el equivalente es `cp .env.example .env` (solo la primera vez),
@@ -99,6 +99,9 @@ cd backend && SEED_DESDE=2026-10-05 npm run seed   # en modo desarrollo
 | `POST /webhooks/messages` | `202 {estado: "recibido", message_id, conversacion_id}` · `200 {estado: "duplicado", …}` si el `message_id` ya llegó · `400 {error: "cuerpo_invalido", detalle: [{campo, mensaje}]}` |
 | `GET /conversaciones?estado=&limite=&antes=` | Bandeja ordenada por último mensaje; `estado` ∈ `abierta`, `resuelta_por_ia`, `cita_agendada`, `escalada`; paginación con el cursor `siguiente` |
 | `GET /conversaciones/:id` | Mensajes, turnos (modelo, tokens, costo, latencia, herramientas con argumentos y resultado, controles), citas, pendientes, `respondiendo` y resumen de costo |
+| `GET /agenda?desde=&hasta=&sede=&especialidad=` | Horarios de un rango de días (hasta 31, hora de Colombia), cada uno con su cita activa; más el catálogo de sedes y especialidades. Alimenta el calendario |
+| `GET /turnos?estado_final=&herramienta=&con_problemas=&limite=&antes=` | Trazas de todos los turnos (llamadas al LLM, iteraciones, herramientas con argumentos y resultado, tokens, costo, latencia), con la pregunta y la respuesta; `resumen` agrega costo, latencia p50/p95 y uso y errores por herramienta sobre todo lo filtrado |
+| `GET /conocimiento` | Documentos y fragmentos que indexó el RAG (sin vectores) |
 | `GET /salud` | Estado de PostgreSQL y MongoDB |
 
 El cuerpo del webhook es el del enunciado: `message_id`, `from` (E.164), `text`
@@ -124,7 +127,8 @@ enviar '{"message_id":"ej.1","from":"+573001112233","text":"Hola, ¿tienen cita 
 ```
 
 **2. Mensaje duplicado:** el mismo `message_id` dos veces. Primero responde 202,
-después 200, y hay un solo turno y una sola respuesta.
+después 200, y hay un solo turno y una sola respuesta. En el simulador: envía
+un mensaje y pulsa **Reenviar el último (mismo message_id)**.
 
 ```bash
 enviar "{\"message_id\":\"ej.2\",\"from\":\"+573002223344\",\"text\":\"Hola\",\"timestamp\":\"$AHORA\"}"

@@ -19,7 +19,11 @@ export interface ContextoTemporal {
   diaSemana: string;  // lunes
   fechaLarga: string; // lunes 5 de octubre de 2026
   manana: string;     // 2026-10-06
+  /** Los próximos 14 días con su día de la semana: el modelo no los calcula (D-39). */
+  calendario: string[]; // ["lunes 5 de octubre: 2026-10-05 (hoy)", ...]
 }
+
+export const DIAS_DE_CALENDARIO = 14;
 
 export function contextoTemporal(ahora: DateTime): ContextoTemporal {
   const local = ahora.setZone(ZONA_COLOMBIA).setLocale('es');
@@ -29,6 +33,11 @@ export function contextoTemporal(ahora: DateTime): ContextoTemporal {
     diaSemana: local.toFormat('cccc'),
     fechaLarga: local.toFormat("cccc d 'de' LLLL 'de' yyyy"),
     manana: local.plus({ days: 1 }).toISODate() ?? '',
+    calendario: Array.from({ length: DIAS_DE_CALENDARIO }, (_, i) => {
+      const dia = local.plus({ days: i });
+      const nota = i === 0 ? ' (hoy)' : i === 1 ? ' (mañana)' : '';
+      return `${dia.toFormat("cccc d 'de' LLLL")}: ${dia.toISODate() ?? ''}${nota}`;
+    }),
   };
 }
 
@@ -64,4 +73,66 @@ export function esHorarioPasado(inicio: Date, ahora: DateTime): boolean {
 /** `2026-10-06T14:00` en hora de Colombia: como se nombra un horario ante el modelo. */
 export function horaLocal(instante: Date): string {
   return DateTime.fromJSDate(instante, { zone: ZONA_COLOMBIA }).toFormat("yyyy-MM-dd'T'HH:mm");
+}
+
+export type ResultadoInstante = { ok: true; instante: DateTime } | { ok: false; detalle: string };
+
+/** `2026-10-07` + `16:30` como instante en hora de Colombia. La hora va en 24 h, `HH:mm`. */
+export function parsearFechaHoraLocal(fecha: string, hora: string): ResultadoInstante {
+  const dia = parsearFechaLocal(fecha);
+  if (!dia.ok) return dia;
+  const partes = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hora);
+  if (!partes) return { ok: false, detalle: `La hora debe ir en 24 h con formato HH:mm (por ejemplo 16:30 para 4:30 p. m.); llegó "${hora}"` };
+  return { ok: true, instante: dia.dia.set({ hour: Number(partes[1]), minute: Number(partes[2]) }) };
+}
+
+/** "miércoles" para `2026-10-07`. */
+export function diaDeLaSemana(fecha: string): string {
+  return DateTime.fromISO(fecha, { zone: ZONA_COLOMBIA }).setLocale('es').toFormat('cccc');
+}
+
+const DIAS_SEMANA = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DIA_Y_FECHA = new RegExp(
+  `\\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\\s+(\\d{1,2})(?:\\s+de\\s+(${MESES.join('|')}))?\\b`,
+  'giu',
+);
+
+/**
+ * "Lunes 7 de octubre" cuando el 7 es miércoles: el día de la semana y la fecha
+ * no coinciden (D-39). Sin mes, el número es del mes en curso o, si ya pasó, del
+ * siguiente. Devuelve cada mención incoherente con la fecha real entre paréntesis.
+ */
+export function fechasIncoherentes(texto: string, ahora: DateTime): string[] {
+  const hoy = ahora.setZone(ZONA_COLOMBIA).startOf('day');
+  const incoherentes: string[] = [];
+  for (const m of texto.matchAll(DIA_Y_FECHA)) {
+    const nombre = m[1]!.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const numero = Number(m[2]);
+    const mes = m[3] ? MESES.indexOf(m[3].toLowerCase()) + 1 : null;
+    let fecha = DateTime.fromObject({ year: hoy.year, month: mes ?? hoy.month, day: numero }, { zone: ZONA_COLOMBIA });
+    if (!fecha.isValid) continue;
+    if (fecha < hoy) fecha = mes ? fecha.plus({ years: 1 }) : fecha.plus({ months: 1 });
+    if (!fecha.isValid || fecha.day !== numero) continue;
+    const real = DIAS_SEMANA[fecha.weekday - 1]!;
+    if (real !== nombre) {
+      incoherentes.push(`${m[0]} (el ${numero} de ${MESES[fecha.month - 1]} es ${fecha.setLocale('es').toFormat('cccc')})`);
+    }
+  }
+  return [...new Set(incoherentes)];
+}
+
+/** "viernes 16 de octubre de 2026" para `2026-10-16`. */
+export function fechaLargaDe(fecha: string): string {
+  return DateTime.fromISO(fecha, { zone: ZONA_COLOMBIA }).setLocale('es').toFormat("cccc d 'de' LLLL 'de' yyyy");
+}
+
+/**
+ * Lo que la herramienta le dice al modelo cuando pide fechas después del último
+ * día con agenda (D-42): la agenda no está llena, todavía no existe.
+ */
+export function avisoFinDeAgenda(finDeAgenda: string): string {
+  return `La agenda tiene horarios publicados solo hasta el ${fechaLargaDe(finDeAgenda)} (${finDeAgenda}). ` +
+    'Para fechas posteriores todavía no hay agenda: díselo así al paciente (no está llena, aún no se ha abierto) ' +
+    'y ofrécele fechas hasta ese día o comunicarlo con un asesor.';
 }

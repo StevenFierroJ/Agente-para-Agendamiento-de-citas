@@ -26,13 +26,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Pediatría",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-08T08:00"
-                  }
-                },
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-08",
+                "hora": "08:00",
                 "nombre_paciente": "Tomás Vega",
                 "motivo": "fiebre"
               }
@@ -45,13 +42,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Pediatría",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-08T08:00"
-                  }
-                },
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-08",
+                "hora": "08:00",
                 "nombre_paciente": "Tomás Vega"
               }
             }
@@ -79,5 +73,17 @@
   ],
   "espera_final": {
     "citas_activas_total": 1
+  },
+  "preparacion": {
+    "ofrecidos": [
+      {
+        "telefono": "+573000000012",
+        "horario": {
+          "especialidad": "Pediatría",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-08T08:00"
+        }
+      }
+    ]
   }
 }

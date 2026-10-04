@@ -79,6 +79,7 @@ La API y el trabajador se arman con `levantarSistema(opciones)` (`src/sistema.ts
   - Índice: (estado, ultimo_mensaje_en desc) para la bandeja.
 - `mensajes_entrantes` (message_id llave primaria, conversacion_id, texto, enviado_en, estado `recibido|procesando|procesado|fallido`, recibido_en).
   - Índice: (conversacion_id, enviado_en) para procesar pendientes en orden (D-03).
+- `horarios_ofrecidos` (conversacion_id, horario_id, ofrecido_en; PK de los dos): lo que `consultar_disponibilidad` mostró; `agendar_cita` solo acepta eso (D-34).
 - `documentos` (id, titulo, origen único).
 - `fragmentos` (id, documento_id, texto, embedding `vector(384)`).
 
@@ -111,7 +112,8 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 
 - `buscar_conocimiento(pregunta)` — los 4 fragmentos más cercanos por coseno. Por debajo de `RAG_UMBRAL` devuelve `sin_resultados`.
 - `consultar_disponibilidad(especialidad, sede, fecha)` — fecha `YYYY-MM-DD` en hora de Colombia. Errores: `fecha_pasada`, `sede_inexistente`, `especialidad_inexistente`, `sin_horarios`.
-- `agendar_cita(horario_id, nombre_paciente)` — errores: `horario_inexistente`, `horario_pasado`, `horario_ocupado`, `nombre_invalido`.
+- `resumir_disponibilidad(especialidad, desde, hasta, sede?)` — franjas libres por sede y día para un rango de hasta 14 días; sin `horario_id` (D-31). Mismos errores que `consultar_disponibilidad`.
+- `agendar_cita(especialidad, sede, fecha, hora, nombre_paciente, profesional?)` — hora en 24 h `HH:mm`; el código resuelve el horario (D-37). Errores: `horario_inexistente`, `horario_no_ofrecido` (el id no salió de `consultar_disponibilidad` en esta conversación, D-34), `horario_pasado`, `horario_ocupado`, `nombre_invalido`.
 - `escalar_a_humano(motivo)` — motivo de una lista cerrada (`sin_informacion`, `solicitud_del_paciente`, `fuera_de_alcance`, `error_tecnico`).
 
 ### Filtros de datos sensibles
@@ -129,7 +131,7 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 - Si falla tras el reintento: mensaje fijo al paciente, conversación a `escalada`, turno guardado con el error.
 - Historial: últimos 20 mensajes de la conversación, sin la salida del propio mensaje (un reintento no ve su respuesta anterior, D-22).
 - Al reenviar el mensaje del asistente con llamadas a herramientas, **se reenvían los bloques `content` tal como llegaron**, sin reconstruirlos. Los `tool_result` consecutivos van en un solo mensaje `user`, con `is_error` cuando la herramienta falló.
-- Prompt de sistema, armado por código en cada turno: fecha, hora y día de la semana en Colombia; lista de sedes y especialidades válidas leída de la base; regla de responder solo con lo que devuelve `buscar_conocimiento`; regla de escalar o decir que no se sabe.
+- Prompt de sistema, armado por código en cada turno: fecha, hora y día de la semana en Colombia, y el calendario de los próximos 14 días (D-39); lista de sedes y especialidades válidas leída de la base; horarios ya ofrecidos en la conversación que siguen libres, con su `horario_id` (D-35); regla de responder solo con lo que devuelve `buscar_conocimiento`; regla de escalar o decir que no se sabe.
 
 ### Estado final del turno (lo decide el código, no el modelo)
 
@@ -142,7 +144,7 @@ Cada una: esquema zod estricto (`.strict()`), validación contra la base, y resu
 - Partición: por sección de encabezado Markdown. Documentos cortos, un fragmento por sección.
 - `multilingual-e5-small` exige prefijos: `passage: ` al indexar y `query: ` al consultar.
 - `RAG_UMBRAL` = 0,837, calibrado con `npm run harness:rag` (Recall@k, MRR, AUC-ROC, barrido de umbrales) sobre `harness/rag/preguntas.json` (D-25). Una variable de entorno vacía toma el valor por defecto.
-- Barandilla de datos (D-26): todo número de la respuesta final debe estar en la evidencia del turno; si no, una corrección y luego mensaje fijo y escalamiento. `npm run harness:rag-e2e` mide exactitud, abstención e invención con Haiku real y un juez Sonnet.
+- Barandilla de datos (D-26) y de horas (D-38: cada hora, como hora o dentro de una franja, respaldada solo por el prompt y las herramientas del turno): todo número de la respuesta final debe estar en la evidencia del turno; si no, una corrección y luego mensaje fijo y escalamiento. `npm run harness:rag-e2e` mide exactitud, abstención e invención con Haiku real y un juez Sonnet.
 - Motivo de la elección del modelo, para `DECISIONS.md`: 384 dimensiones bastan para un corpus de 6 a 10 documentos cortos, y el modelo ocupa menos disco y memoria que BGE-M3. Confirmar los tamaños en la ficha de cada modelo antes de escribir cifras.
 
 ## API

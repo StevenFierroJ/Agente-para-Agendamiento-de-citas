@@ -262,6 +262,18 @@ async function preparar(caso: CasoGold, pool: pg.Pool): Promise<void> {
     return rows[0]!.id;
   };
   for (const telefono of caso.preparacion.escaladas) await conversacion(telefono, 'escalada');
+  for (const ofrecido of caso.preparacion.ofrecidos) {
+    // Sin cambiar el estado si la conversación ya existe (por ejemplo, escalada).
+    const { rows } = await pool.query<{ id: number }>(
+      `INSERT INTO conversaciones (telefono, ultimo_mensaje_en) VALUES ($1, now())
+       ON CONFLICT (telefono) DO UPDATE SET telefono = EXCLUDED.telefono RETURNING id`,
+      [ofrecido.telefono],
+    );
+    await pool.query('INSERT INTO horarios_ofrecidos (conversacion_id, horario_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [
+      rows[0]!.id,
+      await resolverHorario(pool, ofrecido.horario),
+    ]);
+  }
   for (const cita of caso.preparacion.citas) {
     const conversacionId = await conversacion(cita.telefono, 'cita_agendada');
     const horarioId = await resolverHorario(pool, cita.horario);
@@ -454,6 +466,7 @@ async function invariantes(caso: CasoGold, sistema: Sistema, pedidos: readonly P
     ...caso.envios.flatMap((e) => (e.cuerpo ? [e.cuerpo.from] : [])),
     ...caso.preparacion.escaladas,
     ...caso.preparacion.citas.map((c) => c.telefono),
+    ...caso.preparacion.ofrecidos.map((o) => o.telefono),
   ]);
   const enviado = JSON.stringify(pedidos);
   for (const telefono of telefonos) {

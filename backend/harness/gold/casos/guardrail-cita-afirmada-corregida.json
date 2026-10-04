@@ -31,13 +31,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Dermatología",
-                    "sede": "Sede Sur",
-                    "inicio": "2026-10-06T14:00"
-                  }
-                },
+                "especialidad": "Dermatología",
+                "sede": "Sede Sur",
+                "fecha": "2026-10-06",
+                "hora": "14:00",
                 "nombre_paciente": "Ana María Pérez"
               }
             }
@@ -64,5 +61,17 @@
   ],
   "espera_final": {
     "citas_activas_total": 1
+  },
+  "preparacion": {
+    "ofrecidos": [
+      {
+        "telefono": "+573000000034",
+        "horario": {
+          "especialidad": "Dermatología",
+          "sede": "Sede Sur",
+          "inicio": "2026-10-06T14:00"
+        }
+      }
+    ]
   }
 }

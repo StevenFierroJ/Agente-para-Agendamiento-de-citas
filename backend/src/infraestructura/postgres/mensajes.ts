@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import type {
-  Catalogo, EstadoMensajeEntrante, ItemCatalogo, MensajeAProcesar, RepositorioMensajes,
+  Catalogo, EstadoMensajeEntrante, HorarioOfrecido, ItemCatalogo, MensajeAProcesar, RepositorioMensajes,
 } from '../../aplicacion/puertos.js';
 import type { EstadoConversacion } from '../../dominio/errores.js';
 
@@ -85,11 +85,35 @@ export class RepositorioMensajesPostgres implements RepositorioMensajes {
     return rows[0]?.n ?? 0;
   }
 
+  /** Los más recientes primero al recortar; se devuelven en orden de inicio. */
+  async horariosOfrecidosVigentes(conversacionId: number, ahora: Date, limite: number): Promise<HorarioOfrecido[]> {
+    const { rows } = await this.pool.query<{ id: number; inicio: Date; especialidad: string; sede: string; profesional: string }>(
+      `SELECT * FROM (
+         SELECT h.id, h.inicio, e.nombre AS especialidad, s.nombre AS sede, p.nombre AS profesional, o.ofrecido_en
+           FROM horarios_ofrecidos o
+           JOIN horarios h ON h.id = o.horario_id
+           JOIN profesionales p ON p.id = h.profesional_id
+           JOIN especialidades e ON e.id = p.especialidad_id
+           JOIN sedes s ON s.id = h.sede_id
+          WHERE o.conversacion_id = $1 AND h.inicio > $2
+            AND NOT EXISTS (SELECT 1 FROM citas c WHERE c.horario_id = h.id AND c.estado = 'activa')
+          ORDER BY o.ofrecido_en DESC, h.inicio
+          LIMIT $3
+       ) recientes ORDER BY inicio, profesional`,
+      [conversacionId, ahora, limite],
+    );
+    return rows.map((f) => ({ horarioId: f.id, inicio: f.inicio, especialidad: f.especialidad, sede: f.sede, profesional: f.profesional }));
+  }
+
   async catalogo(): Promise<Catalogo> {
-    const [sedes, especialidades] = await Promise.all([
+    const [sedes, especialidades, fin] = await Promise.all([
       this.pool.query<ItemCatalogo>('SELECT id, nombre FROM sedes ORDER BY nombre'),
       this.pool.query<ItemCatalogo>('SELECT id, nombre FROM especialidades ORDER BY nombre'),
+      // max(inicio) recorre el índice único (profesional_id, inicio) por profesional: barato.
+      this.pool.query<{ fin: string | null }>(
+        "SELECT to_char(max(inicio) AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS fin FROM horarios",
+      ),
     ]);
-    return { sedes: sedes.rows, especialidades: especialidades.rows };
+    return { sedes: sedes.rows, especialidades: especialidades.rows, finDeAgenda: fin.rows[0]?.fin ?? null };
   }
 }

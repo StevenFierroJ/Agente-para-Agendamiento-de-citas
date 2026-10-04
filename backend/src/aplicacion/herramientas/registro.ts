@@ -3,6 +3,7 @@ import { crearAgendarCita } from './agendar-cita.js';
 import { crearBuscarConocimiento } from './buscar-conocimiento.js';
 import { crearConsultarDisponibilidad } from './consultar-disponibilidad.js';
 import { crearEscalarAHumano } from './escalar-a-humano.js';
+import { crearResumirDisponibilidad } from './resumir-disponibilidad.js';
 
 export interface DependenciasHerramientas {
   agenda: Agenda;
@@ -15,7 +16,8 @@ export function crearHerramientas(deps: DependenciasHerramientas): Map<string, H
   const herramientas = [
     crearBuscarConocimiento(deps.conocimiento.embeddings, deps.conocimiento.base, deps.conocimiento.umbral),
     crearConsultarDisponibilidad(deps.agenda, deps.catalogo),
-    crearAgendarCita(deps.agenda),
+    crearResumirDisponibilidad(deps.agenda, deps.catalogo),
+    crearAgendarCita(deps.agenda, deps.catalogo),
     crearEscalarAHumano(),
   ];
   return new Map(herramientas.map((h) => [h.definicion.nombre, h]));

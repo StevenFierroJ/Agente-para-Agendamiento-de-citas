@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { afirmaCitaAgendada, mencionaReservaDeCita, prometeEscalamiento } from '../../src/dominio/promesas.js';
+import { diceNoSaber, preguntaPorLosDocumentos, afirmaCitaAgendada, mencionaReservaDeCita, prometeEscalamiento } from '../../src/dominio/promesas.js';
 
 describe('prometeEscalamiento', () => {
   it.each([
@@ -62,3 +62,51 @@ describe('mencionaReservaDeCita (filtro para el verificador)', () => {
     expect(mencionaReservaDeCita(texto)).toBe(false);
   });
 });
+
+describe('diceNoSaber (D-41)', () => {
+  it.each([
+    'No tengo información sobre precios de citas ni sobre coberturas específicas de seguros.', // caso real
+    'No tengo esa información; un asesor te ayudará.',
+    'Lo siento, no cuento con ese dato.',
+    'No manejamos información de tarifas.',
+    'No tengo acceso a los precios.',
+    'No puedo confirmarte la cobertura.',
+  ])('detecta: %s', (texto) => {
+    expect(diceNoSaber(texto)).toBe(true);
+  });
+
+  it.each([
+    'La clínica atiende Colsanitas; lleva tu carné.',
+    'No tenemos la especialidad de tórax: contamos con Dermatología, Medicina general y Pediatría.',
+    'No tengo horarios libres ese día.',
+  ])('no confunde con: %s', (texto) => {
+    expect(diceNoSaber(texto)).toBe(false);
+  });
+});
+
+describe('preguntaPorLosDocumentos (D-41)', () => {
+  it.each([
+    'Hola quisiera saber cuanto vale una cita con torax sabiendo que tengo colsanitas', // caso real
+    'tengo coomeva, me atienden ahi?',
+    'tengo poliza de allianz, cubren la consulta de pediatria?',
+    '¿Qué debo llevar a la cita?',
+    '¿Hay que ir en ayunas para el examen?',
+    '¿Puedo cancelar la cita?',
+    '¿Dónde queda la Sede Sur?',
+    '¿Aceptan tarjeta?',
+  ])('tema de los documentos: %s', (texto) => {
+    expect(preguntaPorLosDocumentos(texto)).toBe(true);
+  });
+
+  it.each([
+    'Que horarios tienen disponibles en las dos sedes la proxima semana',
+    'el 7 de octubre',
+    'a las 4:30',
+    'Steven Fierro',
+    'sede norte el lunes a las 11 am',
+    'hola me duele la cabeza',
+  ])('no es tema de los documentos: %s', (texto) => {
+    expect(preguntaPorLosDocumentos(texto)).toBe(false);
+  });
+});
+

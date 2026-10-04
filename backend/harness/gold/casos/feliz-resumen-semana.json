@@ -1,0 +1,119 @@
+{
+  "id": "feliz-resumen-semana",
+  "descripcion": "El paciente pide disponibilidad de una semana sin día ni sede. El modelo resume con resumir_disponibilidad (sin sede) en franjas por día; cuando el paciente elige día y sede, consulta ese día para obtener el horario_id y agenda.",
+  "cubre": [
+    "cita_agendada"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.resumen.1",
+        "from": "+573000000031",
+        "text": "Hola, ¿qué disponibilidad tienen de dermatología esta semana? Me acomodo",
+        "timestamp": "2026-10-05T14:00:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "resumir_disponibilidad",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "desde": "2026-10-05",
+                "hasta": "2026-10-09"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Esta semana hay dermatología así: Sede Norte lunes 5, miércoles 7 y viernes 9 de 2:00 a 6:00 p. m.; Sede Sur martes 6 y jueves 8 de 8:00 a 12:00 y de 2:00 a 5:00 p. m. ¿Qué día y sede prefieres?"
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "resumir_disponibilidad",
+            "error": null
+          }
+        ],
+        "estado_final": "resuelta_por_ia"
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.resumen.2",
+        "from": "+573000000031",
+        "text": "El jueves a las 9 en la Sede Sur, a nombre de Pedro Gómez",
+        "timestamp": "2026-10-05T14:05:00Z"
+      },
+      "http": [
+        202
+      ],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "consultar_disponibilidad",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Sur",
+                "fecha": "2026-10-08"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": {
+                "especialidad": "Dermatología",
+                "sede": "Sede Sur",
+                "fecha": "2026-10-08",
+                "hora": "09:00",
+                "nombre_paciente": "Pedro Gómez"
+              }
+            }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "Listo, Pedro: tu cita de dermatología es el jueves 8 a las 9:00 a. m. en la Sede Sur."
+        }
+      ],
+      "espera": {
+        "herramientas": [
+          {
+            "nombre": "consultar_disponibilidad",
+            "error": null
+          },
+          {
+            "nombre": "agendar_cita",
+            "error": null
+          }
+        ],
+        "estado_final": "cita_agendada"
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": {
+      "+573000000031": {
+        "estado": "cita_agendada",
+        "citas_activas": 1
+      }
+    },
+    "citas_activas_total": 1
+  }
+}

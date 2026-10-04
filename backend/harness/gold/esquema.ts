@@ -133,6 +133,9 @@ const Preparacion = z
       .array(z.object({ telefono: z.string(), horario: RefHorario, nombre_paciente: z.string() }).strict())
       .default([]),
     escaladas: z.array(z.string()).default([]),
+    // Horarios que consultar_disponibilidad ya le mostró a esa conversación (D-34), para
+    // casos que prueban agendar_cita sin repetir la consulta.
+    ofrecidos: z.array(z.object({ telefono: z.string(), horario: RefHorario }).strict()).default([]),
   })
   .strict();
 
@@ -164,7 +167,7 @@ export const CasoGold = z
     modos: z.array(z.enum(['guion', 'real'])).min(1),
     // Quién revisó que lo esperado es lo correcto. null = nadie más que quien lo escribió.
     validado_por: z.string().nullable(),
-    preparacion: Preparacion.default({ citas: [], escaladas: [] }),
+    preparacion: Preparacion.default({ citas: [], escaladas: [], ofrecidos: [] }),
     envios: z.array(Envio).min(1),
     espera_final: EsperaFinal.default({}),
   })

@@ -855,3 +855,334 @@ binarios de todas las plataformas) y el modelo (130 MB). Es el precio de los
 embeddings en proceso (D-25); en producción, un servicio de embeddings gestionado
 lo sacaría de la imagen.
 
+
+### D-31 · Disponibilidad por rango: `resumir_disponibilidad`
+Un paciente que pregunta "¿qué tienen para octubre?" o "la próxima semana" recibía
+una lista de preguntas (día exacto, sede) antes de cualquier consulta, porque
+`consultar_disponibilidad` solo sirve para un día y una sede. Cuando el modelo
+intentaba cubrir una semana, la llamaba hasta 7 veces en un turno.
+- **Herramienta nueva, no una ampliación.** `resumir_disponibilidad(especialidad,
+  desde, hasta, sede?)` devuelve, por sede y día, franjas en hora de Colombia
+  (`08:00-12:00`): bloques contiguos unidos y profesionales que coinciden
+  contados una vez (`franjasPorDia`, en el dominio). Sin sede, consulta todas.
+  `consultar_disponibilidad` conserva su firma del enunciado y su forma de
+  resultado.
+- **No devuelve `horario_id`.** Para agendar, el modelo consulta el día elegido
+  con `consultar_disponibilidad`. Así el resumen se mantiene corto, y la única
+  fuente de ids es la consulta de un día.
+- **Rango acotado:** si empieza en el pasado, se toma desde hoy; si `hasta` ya
+  pasó, `fecha_pasada`; si `hasta` es anterior a `desde`, `argumentos_invalidos`.
+  Lo que pasa de 14 días (lo que cubre la agenda) se recorta y el resultado lo
+  dice en `recortado`. No hay códigos de error nuevos.
+- **Barandilla de datos:** las franjas van en formato de 24 h, que D-26 ya
+  traduce a 12 h ("14:00" respalda "2:00 p. m.").
+
+Medido con Haiku real ("¿qué disponibilidad tienen de dermatología la próxima
+semana? me acomodo a cualquier sede"): una sola llamada, sin sede, respuesta
+con días y franjas de las dos sedes, sin intervención de la barandilla, USD
+0,0072. Caso de goldset `feliz-resumen-semana`. **Costo aceptado:** agendar
+desde un resumen cuesta una consulta más, la del día elegido.
+
+### D-32 · Vistas del coordinador: trazas, agenda y base de conocimiento
+Además de lo que pide el enunciado (bandeja, detalle y simulador), la interfaz
+tiene tres vistas de solo lectura, pedidas para la operación:
+- **Agenda:** calendario semanal con cada horario libre o con cita, filtrable
+  por sede y especialidad. Una cita abre su conversación. Sale de `GET /agenda`,
+  una consulta sobre `horarios` con `LEFT JOIN` a la cita activa, que usa el
+  índice `(sede_id, inicio)`. El rango está acotado a 31 días.
+- **Base de conocimiento:** los documentos y fragmentos que indexó el RAG, con
+  búsqueda. Sirve para responder "¿por qué el asistente no supo esto?": si no
+  está en un fragmento, el asistente no lo puede encontrar. Sale de
+  `GET /conocimiento`, sin los vectores.
+
+- **Trazas:** una tabla con todos los turnos de todas las conversaciones:
+  herramientas (agrupadas, con sus errores), iteraciones, llamadas al LLM,
+  tokens, costo, latencia, estado y barandillas. Arriba, el agregado de lo
+  filtrado: costo total y por turno, latencia p50 y p95 (`$percentile` de
+  MongoDB 7+), y uso y tasa de error de cada herramienta. Se filtra por estado
+  final, por herramienta y por "solo con problemas". Sale de `GET /turnos`,
+  paginado con cursor `(fecha, _id)` (la hora del mensaje del paciente, no la de
+  procesamiento: turnos de conversaciones distintas se procesan en paralelo y su
+  orden de inicio no es determinista) sobre dos índices nuevos de `turnos`:
+  `(fecha, _id)` y `(estado_final, fecha, _id)`. El filtro por
+  herramienta recorre el primero; a este volumen no justifica un índice multiclave.
+  El filtro de problemas usa `$elemMatch`: `'herramientas.error': {$ne: null}`
+  también coincide con un arreglo vacío, y un test lo cubre.
+
+Ninguna de estas vistas escribe ni pasa por la capa de aplicación (como la bandeja,
+D-27). En la agenda, el nombre del paciente sale completo y el teléfono no
+aparece. **Costo aceptado:** es alcance fuera del enunciado. Se limitó a lectura
+y no se agregaron acciones como cancelar o mover citas.
+
+### D-33 · Preguntas que mezclan temas: una búsqueda por tema
+Caso real: "¿qué servicios ofrecen y en qué horarios?". Haiku hizo una sola
+búsqueda. Los 4 fragmentos más cercanos traían la Sede Norte, pero no la Sur,
+que quedó quinta. El modelo respondió "atendemos de 7:00 a. m. a 6:00 p. m.",
+que es el horario de la Norte aplicado a toda la clínica (la Sur abre a las
+8:00), y mandó a un asesor para la Sur. La barandilla de datos (D-26) no lo
+podía ver: el 7 sí estaba en la evidencia, solo que era de otra sede.
+- **Cambio:** la descripción de `buscar_conocimiento` dice que devuelve 4
+  fragmentos y que se busca una vez por tema. El prompt agrega dos reglas: si
+  los fragmentos responden solo una parte, buscar de nuevo esa parte antes de
+  decir que no se sabe u ofrecer un asesor; y no extender a toda la clínica un
+  dato de una sede o especialidad.
+- **Descarté subir k:** traería más tokens a todas las preguntas para arreglar
+  las compuestas, y no evita la generalización.
+
+Medido con Haiku real, la misma pregunta 3 veces: en las 3 hizo dos búsquedas y
+dio los horarios de las dos sedes por separado, sin ofrecer un asesor. Costó
+USD 0,008 a 0,012 por turno, frente a 0,0103 del caso original. Una de las 3 tuvo
+una corrección de la barandilla (un "3" sin respaldo) y salió bien.
+
+### D-34 · Solo se agenda un horario que se le ofreció a esa conversación
+Caso real: el paciente eligió dermatología, Sede Norte, miércoles 7 a las
+3:00 p. m. (Dra. Restrepo, `horario_id` 117). En el turno siguiente ("Steven
+Fierro") el historial ya no traía los ids (D-16), y Haiku llamó a
+`agendar_cita` con `horario_id: 3`: medicina general, lunes 5 a las 8:00, Dra.
+Gómez. El horario existía y estaba libre, así que el código lo agendó, y la
+confirmación al paciente fue de otra cita. Al repetir la conversación, Haiku
+volvió a mandar el 3: el error es sistemático.
+- **Regla en el código, no en el prompt:** `consultar_disponibilidad` registra
+  en `horarios_ofrecidos (conversacion_id, horario_id)` cada horario que le
+  muestra al modelo. `agendar_cita` lee esa marca dentro de la misma transacción
+  en que agenda. Un id que no se ofreció en esa conversación devuelve
+  `horario_no_ofrecido`, con la instrucción de consultar el día elegido.
+- **Orden de las reglas** (`decidirAgendamiento`): inexistente → ya era tuya
+  (para que el reintento de un turno siga devolviendo la misma cita) → no
+  ofrecido → pasado → ocupado. De un id inventado no se le dice al modelo si
+  está ocupado o pasado.
+- **PostgreSQL y no MongoDB:** la marca se consulta en la transacción de
+  `agendar_cita`, junto a la cita.
+- **Tests y harness:** 3 tests de dominio, 3 de herramientas y el caso
+  `herr-horario-no-ofrecido`. Los casos y el harness de volumen que agendan sin
+  consulta previa (porque prueban otra cosa: ocupado, pasado, concurrencia)
+  declaran el horario como ofrecido en su preparación.
+
+Medido con Haiku real, la conversación completa repetida: Haiku intentó el 3,
+recibió `horario_no_ofrecido`, consultó el miércoles 7 y agendó el 117, el
+horario correcto. **Costo aceptado:** dos llamadas más en el turno de agendar.
+La conversación costó USD 0,046. Lo que falta es la memoria de herramientas en
+el historial (§9): con los `horario_id` ofrecidos a la vista, el modelo no
+tendría que adivinar. La regla de D-34 se queda como garantía.
+
+### D-35 · Los horarios ya ofrecidos van al prompt, con su `horario_id`
+D-34 impide agendar un id inventado, pero el modelo lo seguía inventando y la
+corrección costaba dos llamadas más. La causa es D-16: el historial es solo
+texto, así que en el turno siguiente a una consulta los ids ya no están.
+- **Qué entra:** el prompt de cada turno lista los horarios que
+  `consultar_disponibilidad` mostró en esa conversación y que siguen libres y
+  sin empezar: `horario_id · inicio · especialidad · sede · profesional`.
+  Salen de `horarios_ofrecidos` (D-34), los 20 de las consultas más recientes,
+  ordenados por inicio. El prompt dice que se agende con ese id, sin volver a
+  consultar, y que nunca se deduzca uno.
+- **Por qué en el prompt y no en el historial:** el prompt ya lo arma el código
+  en cada turno con datos de la base (fecha, sedes, especialidades). Así la
+  lista refleja el estado actual: un horario que otro paciente tomó entre
+  turnos ya no aparece. Meter resultados de herramientas en el historial
+  traería datos viejos y más tokens.
+- **D-34 se queda** como garantía: si el modelo igual manda otro id, el código
+  lo rechaza.
+
+Medido con Haiku real, la misma conversación de D-34: agendó el 117 a la
+primera, sin error ni segunda consulta. La conversación costó USD 0,031, frente
+a 0,046. Caso de goldset `feliz-agenda-con-ofrecidos`, que verifica la sección
+en el prompt del segundo turno, y un test del repositorio, que deja fuera los
+horarios tomados y los que ya empezaron. **Costo aceptado:** unos 20 tokens por
+horario ofrecido en cada turno, hasta 20 horarios.
+
+### D-36 · Sin indicaciones que no salieron de los documentos en el turno
+Caso real: al confirmar una cita, Haiku agregó "te recomendamos llegar 10
+minutos antes". El documento dice 15. No buscó en ese turno y la barandilla
+numérica (D-26) no lo detectó, porque el 10 estaba en la evidencia como el mes
+de las fechas (`2026-10-07`).
+- **Cambio:** una regla en el prompt. No agregar indicaciones (cuánto antes
+  llegar, qué llevar, preparación, cancelación, pagos) que no hayan salido de
+  `buscar_conocimiento` en ese turno, tampoco al confirmar. Si se quieren dar,
+  se buscan primero y se repiten tal cual.
+- **Descarté por ahora** que la barandilla compare cada número con su unidad
+  ("10 minutos" y no un 10 cualquiera). Queda como siguiente paso si la regla
+  no alcanza.
+
+Medido con Haiku real, el flujo completo de agendamiento 3 veces: ninguna
+confirmación agregó indicaciones. Las mismas corridas mostraron dos fallas de
+otro tipo, con la hora de la cita (ver lo que sigue en el registro).
+
+### D-37 · `agendar_cita` recibe la hora, no un `horario_id`
+Con D-34 y D-35 el modelo ya no podía agendar un id inventado, pero seguía
+eligiendo mal entre ids válidos. Caso real: el paciente dijo "4:30", y Haiku
+agendó el 116 (2:30 p. m.) en lugar del 120 (4:30 p. m.), probablemente
+porque confundió "4:30" con "14:30". La confirmación salió como "a las 14:30".
+- **Nueva firma:** `agendar_cita(especialidad, sede, fecha, hora, nombre_paciente,
+  profesional?)`, con la hora en 24 h (`HH:mm`). El código busca el horario que
+  empieza a esa hora y lo agenda con las reglas de siempre (ofrecido, libre, no
+  pasado; D-34). El modelo solo tiene que pasar "4:30 p. m." a "16:30", que es lo
+  que el paciente dijo, en lugar de copiar un número de una lista.
+- **`consultar_disponibilidad` ya no devuelve `horario_id`**, y el prompt lista
+  los horarios ofrecidos sin ids (D-35). No queda ningún id que confundir.
+- **Dos profesionales a la misma hora** (no pasa en el seed, pero el modelo de
+  datos lo permite): sin `profesional`, `argumentos_invalidos` con los nombres
+  para que elija. Con `profesional`, se agenda el suyo. Hay un test.
+- **Una hora sin horario** devuelve `horario_inexistente`. Una hora en otro
+  formato ("8:00 a. m.", "8:00") devuelve `argumentos_invalidos`.
+- **Sin códigos de error nuevos.** El goldset, los tests y el harness de volumen
+  se pasaron a la firma nueva.
+
+Medido con Haiku real: "4:30" se agendó con `hora: "16:30"`, correcto.
+
+### D-38 · Barandilla de horas
+La barandilla de D-26 compara números sueltos. Una hora inventada pasa si sus
+números están en otra parte. Caso real: el modelo ofreció "6:00 p. m." y
+"6:30 p. m.", cuando el último bloque del día es a las 5:30; el 6 y el 30
+estaban en la evidencia por otras razones.
+- **Cada hora de la respuesta tiene que estar en la evidencia como hora:** igual
+  ("2:00 p. m." = `14:00`) o dentro de una franja ("14:00-18:00", o "de 7:00 a.
+  m. a 6:00 p. m." en los documentos). Se entiende a. m., p. m., "12:00 m." y
+  24 h. Una hora de un dígito sin meridiano ("2:30") vale con cualquiera de sus
+  dos lecturas. "04:30" o "T04:30" es de la madrugada.
+- **Las horas solo las respaldan los datos:** el prompt (que trae los horarios
+  ofrecidos, D-35) y las herramientas del turno. Lo que el modelo o el paciente
+  dijeron antes no cuenta. En una corrida real el modelo, sin consultar, armó
+  "2:00, 3:30 y 5:00" a partir de franjas que él mismo había dicho, y le negó al
+  paciente las 2:30, que estaban libres. Ahora, para hablar de horas, tiene que
+  consultar. El prompt además pide consultar el día antes de decir que una hora
+  no está, y mostrar lo que devolvió la herramienta, no una selección.
+- **Falsos positivos medidos:** sobre las 31 respuestas reales con horas guardadas
+  en la base de desarrollo, con una evidencia menor que la real, marcó una sola:
+  la del 6:30 inventado.
+
+Tests de dominio (franjas, meridianos, ambigüedad, la regla de solo datos) y el
+caso `guardrail-hora-sin-consultar`.
+
+Al exigir que consulte, el modelo empezó a preguntar la sede una y otra vez en
+lugar de consultar, y la conversación no avanzaba. Se agregó al prompt: si el
+paciente no dijo sede, consultar ese día en todas las sedes.
+
+Medido con Haiku real, el flujo completo (síntoma → semana → "el 7 de octubre"
+→ hora → nombre) con "4:30", "4" y "2:30": las tres agendaron la hora pedida
+(`16:30`, `16:00`, `14:30`). En las tres, el primer borrador traía horas sin
+consultar. La barandilla lo frenó, y el modelo consultó y mostró la
+disponibilidad real (que ya excluía la hora tomada en la corrida anterior).
+USD 0,038 a 0,043 por conversación. **Costo aceptado:** cuando el modelo habla
+de horas sin haber consultado, la corrección le cuesta una llamada más.
+
+### D-39 · Los días de la semana los calcula el código
+Caso real: el domingo 4 el paciente pidió "sede norte el lunes a las 11 am".
+Haiku consultó `fecha: "2026-10-07"`, que es miércoles (el lunes es el 5),
+agendó ese día y confirmó "Lunes 7 de octubre". Ninguna regla lo frenó: el
+horario existía, estaba libre y se había ofrecido en la conversación (D-34). El
+error estaba en la fecha.
+- **Causa:** el prompt daba la fecha de hoy y la de mañana, pero el modelo
+  calculaba los demás días de la semana. "Mañana en hora de Colombia" estaba
+  resuelto; "el lunes" no.
+- **Calendario en el prompt:** los próximos 14 días con su día de la semana
+  (`lunes 5 de octubre: 2026-10-05 (mañana)`), calculados por el código desde
+  el `timestamp` del mensaje, con la instrucción de usar la tabla en lugar de
+  calcular.
+- **El día de la semana en los resultados:** `consultar_disponibilidad` y
+  `agendar_cita` devuelven `dia: "miércoles"`, así que el modelo ve el día real
+  de lo que consultó o agendó.
+- **Barandilla de fechas** (`fechasIncoherentes`): toda mención "lunes 7 (de
+  octubre)" se verifica contra el calendario real. Sin mes, se toma el mes en
+  curso o el siguiente; con un mes que ya pasó, el año siguiente. Si no coincide,
+  se pide corregir como con un dato sin respaldo, y la corrección le recuerda al
+  modelo el calendario y que le diga al paciente si agendó otro día.
+- **Lo que no cubre:** si el modelo agenda el día equivocado y no escribe el
+  número del día, la barandilla no tiene nada que comparar. El calendario es la
+  defensa principal; la barandilla atrapa la confirmación incoherente, que es lo
+  que el paciente lee.
+
+Tests del calendario, del día de la semana y de la barandilla (con el caso real y
+el cambio de año), y el caso `guardrail-dia-de-la-semana`.
+
+Medido con Haiku real, la misma conversación repetida 3 veces el domingo 4 ("el
+lunes a las 11 / 10 / 9 am"): las 3 consultaron `2026-10-05`, y las respuestas
+decían "lunes 5 de octubre". Dos agendaron y la tercera pidió el nombre completo
+antes de agendar. USD 0,016 a 0,021 por conversación. **Costo aceptado:** unos
+150 tokens de calendario en cada turno.
+
+### D-40 · La traza guarda lo que la barandilla bloqueó, y la corrección dice dónde
+Caso real: "quiero cita de dermatología, no sé cuánto vale, tengo prepagada Sura".
+Los documentos tenían la respuesta: la clínica atiende Sura, hay que llevar carné
+y documento, y no hay precios. Pero el paciente recibió "No tengo esa información
+confirmada" y la conversación se escaló. La traza mostraba tres controles: una
+cita afirmada sin agendar, corregida; un "3" sin respaldo, con pedido de
+corregir; y el mismo "3" otra vez, con la respuesta descartada. **No mostraba qué
+había escrito el modelo**, así que no se podía saber qué era ese 3.
+- **El control guarda el borrador** (`controles[].borrador`), y la interfaz lo
+  muestra en la traza ("ver lo que escribió el modelo"). Una barandilla que no
+  deja auditar lo que bloqueó no se puede calibrar.
+- **La corrección cita la frase:** antes decía solo `datos que no aparecen…: 3`;
+  ahora dice `«3» en "…Aceptamos las 3 medicinas prepagadas…"`, y aclara que
+  un conteo o algo deducido se quita o se escribe como en la fuente, sin
+  descartar el resto de la respuesta. Un número suelto no le decía al modelo qué
+  quitar, y lo repetía. El número se busca entero: el 3 de "3 prepagadas", no el
+  de "13:00".
+- **No relajé la barandilla:** un conteo cierto ("las 3 prepagadas") sigue
+  siendo un dato que no está literal en la fuente. Prefiero que el modelo lo
+  quite a enseñarle a la barandilla a contar.
+
+Medido con Haiku real: la misma pregunta 9 veces, y las 9 respondieron bien
+(atienden Sura, carné y documento; 2 aclararon que no tienen el precio), sin
+barandillas. La falla original no se reprodujo. La hipótesis del conteo sale de
+la forma de la traza y no está confirmada. Si vuelve a pasar, el borrador
+quedará en la traza.
+
+### D-41 · Responder sobre temas de los documentos sin haberlos buscado
+Caso real: "¿cuánto vale una cita con tórax si tengo Colsanitas?". Haiku no llamó
+a ninguna herramienta y respondió de memoria "no tengo información sobre
+coberturas de seguros". El documento de cobertura dice que la clínica atiende
+Colsanitas. Ninguna barandilla lo podía ver: todas verifican lo que el modelo
+afirma, y esta respuesta no afirmaba nada; se abstenía sin haber buscado.
+- **Barandilla en código:** si en el turno no se llamó a `buscar_conocimiento`
+  y el paciente preguntó por un tema que solo responden los documentos
+  (prepagadas o seguros por nombre, cobertura, precio, pagos, preparación,
+  cancelación, qué llevar, dirección) o la respuesta dice que no tiene la
+  información, se le pide al modelo que busque. Es una sola vez: si después de
+  buscar el dato no está, abstenerse es lo correcto. No aplica si en el turno
+  escaló o agendó.
+- **Primero detecté solo la abstención** ("no tengo información…"). En la
+  medición, una corrida se escapó con un desvío ("para coberturas te recomiendo
+  hablar con un asesor") sin esa frase. Enumerar formas de evadir es una carrera
+  perdida; el tema de la pregunta del paciente es más estable.
+- **Regla de prompt:** no decir que no se tiene una información de la clínica
+  sin haberla buscado en el turno.
+- **Los controles no se le mencionan al paciente:** una corrida respondió
+  "Gracias por la corrección. He buscado…". Todos los mensajes de control dicen
+  ahora que el paciente no los ve.
+
+Medido con Haiku real: la pregunta original 5 veces, más Coomeva y una póliza
+Allianz. Las 7 buscaron y respondieron con los documentos (atienden la
+prepagada; hay que llevar carné y documento; el precio no está publicado). En 4
+de las 5 corridas de la pregunta original, **el modelo respondió primero sin
+buscar y la barandilla lo obligó**: sin ella, la falla habría sido la regla. Con
+el aviso de no mencionar el control, 3 corridas más y ninguna lo mencionó.
+**Costo aceptado:** cuando la barandilla actúa, una llamada más (USD 0,0125
+contra 0,0085 el turno).
+
+### D-42 · Fuera de la agenda no es lo mismo que sin horarios
+Caso real: el paciente pidió dermatología para enero de 2027, después diciembre y
+después noviembre. La agenda sembrada llega hasta el viernes 16 de octubre. Las
+herramientas respondían `sin_horarios` y el modelo decía "no hay disponibilidad
+en diciembre", como si el mes estuviera lleno. El error de `resumir_disponibilidad`
+mostraba además el rango ya recortado a 14 días ("del 2026-12-01 a 2026-12-14"),
+y el modelo lo repitió. También afirmó "tengo disponibilidad en noviembre" sin
+haberlo consultado; un turno después dijo que no había.
+- **El catálogo trae el último día con agenda** (`finDeAgenda`, el máximo de
+  `horarios.inicio` en hora de Colombia). No es una consulta aparte: el prompt y
+  las herramientas ya leen el catálogo en cada turno.
+- **Error nuevo `fuera_de_agenda`:** una fecha posterior al último día con
+  agenda no es `sin_horarios`. El detalle le dice al modelo que la agenda aún no
+  se ha abierto (no está llena) y que ofrezca fechas hasta ese día o un asesor.
+  `resumir_disponibilidad` recorta en el fin de la agenda y lo dice en
+  `recortado`, también dentro del error `sin_horarios`.
+- **El prompt dice hasta dónde llega la agenda** y prohíbe afirmar disponibilidad
+  en una fecha o mes que no se consultó.
+- En producción, el fin de la agenda saldría de la configuración de cada clínica
+  (hasta cuándo abre agenda), no del último horario cargado.
+
+Tests de las dos herramientas (enero, noviembre y diciembre del caso real) y el
+caso `herr-fuera-de-agenda`. Medido con Haiku real, la misma conversación 2
+veces: en los 6 turnos dijo que la agenda está abierta hasta el viernes 16 de
+octubre y que esas fechas aún no se publican, sin afirmar disponibilidad. Como
+el prompt ya trae el dato, no necesitó herramientas: USD 0,017 la conversación,
+contra 0,034 de la original.

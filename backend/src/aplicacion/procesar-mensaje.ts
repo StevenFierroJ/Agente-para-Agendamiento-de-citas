@@ -1,5 +1,5 @@
 import { siguienteEstadoConversacion } from '../dominio/estados.js';
-import { ahoraDelMensaje, contextoTemporal } from '../dominio/fechas.js';
+import { ahoraDelMensaje, contextoTemporal, horaLocal } from '../dominio/fechas.js';
 import { describirError, enmascararTelefono, type Registro } from '../infraestructura/registro.js';
 import { MENSAJE_FALLA_TECNICA } from './mensajes-fijos.js';
 import { ejecutarTurno, type DependenciasOrquestador } from './orquestador.js';
@@ -7,6 +7,8 @@ import { construirPromptSistema } from './prompt.js';
 import type { AlmacenConversaciones, MensajeAProcesar, MensajeLlm, RepositorioMensajes } from './puertos.js';
 
 export const LIMITE_HISTORIAL = 20;
+/** Horarios ofrecidos que van al prompt: los de las consultas más recientes (D-35). */
+export const LIMITE_OFRECIDOS = 20;
 
 export interface DependenciasProcesamiento extends DependenciasOrquestador {
   mensajes: RepositorioMensajes;
@@ -44,10 +46,11 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
   });
 
   const ahora = ahoraDelMensaje(mensaje.enviadoEn);
-  const [historial, catalogo, citasActivas] = await Promise.all([
+  const [historial, catalogo, citasActivas, ofrecidos] = await Promise.all([
     deps.almacen.historial(mensaje.conversacionId, LIMITE_HISTORIAL),
     deps.mensajes.catalogo(),
     deps.mensajes.citasActivas(mensaje.conversacionId),
+    deps.mensajes.horariosOfrecidosVigentes(mensaje.conversacionId, ahora.toJSDate(), LIMITE_OFRECIDOS),
   ]);
   const turno = await ejecutarTurno(
     {
@@ -60,6 +63,8 @@ export async function procesarMensaje(messageId: string, deps: DependenciasProce
         tiempo: contextoTemporal(ahora),
         sedes: catalogo.sedes.map((s) => s.nombre),
         especialidades: catalogo.especialidades.map((e) => e.nombre),
+        finDeAgenda: catalogo.finDeAgenda,
+        ofrecidos: ofrecidos.map((o) => ({ inicio: horaLocal(o.inicio), especialidad: o.especialidad, sede: o.sede, profesional: o.profesional })),
       }),
       // El historial previo, sin este mensaje (en un reintento su respuesta anterior
       // ya puede estar guardada, D-22), y el mensaje actual siempre al final: el

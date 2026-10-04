@@ -1,6 +1,6 @@
 {
   "id": "herr-horario-inexistente",
-  "descripcion": "El modelo inventa un horario_id.",
+  "descripcion": "El modelo pide una hora en la que no hay ningún horario: dermatología en la Sede Norte el miércoles 7 a las 13:00 (la Dra. Restrepo atiende de 14:00 a 18:00).",
   "cubre": [
     "horario_inexistente"
   ],
@@ -26,7 +26,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": 999999,
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "13:00",
                 "nombre_paciente": "Pedro Gómez"
               }
             }

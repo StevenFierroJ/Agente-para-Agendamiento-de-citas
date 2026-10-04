@@ -1,0 +1,77 @@
+{
+  "id": "guardrail-dia-de-la-semana",
+  "descripcion": "Caso real (D-39): el domingo 4 el paciente pide 'el lunes'. El prompt trae el calendario (lunes 5 = 2026-10-05) calculado por el código. Al confirmar, el modelo escribe 'lunes 7 de octubre' (el 7 es miércoles): la barandilla de fechas lo detecta y el modelo corrige a 'lunes 5'.",
+  "cubre": [
+    "dato_sin_respaldo_corregido",
+    "zona_horaria"
+  ],
+  "modos": [
+    "guion"
+  ],
+  "validado_por": null,
+  "envios": [
+    {
+      "cuerpo": {
+        "message_id": "gold.dia-semana.1",
+        "from": "+573000000038",
+        "text": "Medicina general, sede norte el lunes a las 11 am",
+        "timestamp": "2026-10-04T14:04:00Z"
+      },
+      "http": [202],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            { "nombre": "consultar_disponibilidad", "argumentos": { "especialidad": "Medicina general", "sede": "Sede Norte", "fecha": "2026-10-05" } }
+          ]
+        },
+        {
+          "tipo": "texto",
+          "texto": "El lunes 5 de octubre hay medicina general a las 11:00 a. m. en la Sede Norte con la Dra. Laura Gómez. ¿A nombre de quién agendo?"
+        }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "consultar_disponibilidad", "error": null }],
+        "estado_final": "resuelta_por_ia",
+        "prompt_contiene": [
+          "Hoy es domingo 4 de octubre de 2026",
+          "lunes 5 de octubre: 2026-10-05 (mañana)",
+          "miércoles 7 de octubre: 2026-10-07"
+        ]
+      }
+    },
+    {
+      "cuerpo": {
+        "message_id": "gold.dia-semana.2",
+        "from": "+573000000038",
+        "text": "Rojas Pinilla",
+        "timestamp": "2026-10-04T14:05:00Z"
+      },
+      "http": [202],
+      "guion": [
+        {
+          "tipo": "herramientas",
+          "llamadas": [
+            {
+              "nombre": "agendar_cita",
+              "argumentos": { "especialidad": "Medicina general", "sede": "Sede Norte", "fecha": "2026-10-05", "hora": "11:00", "nombre_paciente": "Rojas Pinilla" }
+            }
+          ]
+        },
+        { "tipo": "texto", "texto": "Listo: tu cita de medicina general es el lunes 7 de octubre a las 11:00 a. m. en la Sede Norte con la Dra. Laura Gómez." },
+        { "tipo": "texto", "texto": "Listo: tu cita de medicina general es el lunes 5 de octubre a las 11:00 a. m. en la Sede Norte con la Dra. Laura Gómez." }
+      ],
+      "espera": {
+        "herramientas": [{ "nombre": "agendar_cita", "error": null }],
+        "controles": ["corregir"],
+        "estado_final": "cita_agendada",
+        "respuesta_contiene": ["lunes 5 de octubre"],
+        "respuesta_no_contiene": ["lunes 7"]
+      }
+    }
+  ],
+  "espera_final": {
+    "conversaciones": { "+573000000038": { "estado": "cita_agendada", "citas_activas": 1 } },
+    "citas_activas_total": 1
+  }
+}

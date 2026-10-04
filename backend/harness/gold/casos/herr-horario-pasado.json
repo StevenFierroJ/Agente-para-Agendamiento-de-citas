@@ -26,13 +26,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Pediatría",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-07T08:00"
-                  }
-                },
+                "especialidad": "Pediatría",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "08:00",
                 "nombre_paciente": "Sofía Ríos"
               }
             }
@@ -56,5 +53,17 @@
   ],
   "espera_final": {
     "citas_activas_total": 0
+  },
+  "preparacion": {
+    "ofrecidos": [
+      {
+        "telefono": "+573000000008",
+        "horario": {
+          "especialidad": "Pediatría",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-07T08:00"
+        }
+      }
+    ]
   }
 }

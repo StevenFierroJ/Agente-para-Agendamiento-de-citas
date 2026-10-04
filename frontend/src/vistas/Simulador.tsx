@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ErrorApi, api } from '../api';
+import { ErrorApi, api, type RespuestaWebhook } from '../api';
 import { Detalle } from './Detalle';
 
 /** Mensajes de ejemplo de los casos borde (los mismos del README). */
@@ -19,6 +19,8 @@ function aIsoColombia(local: string): string {
   return new Date(`${local}:00-05:00`).toISOString();
 }
 
+type CuerpoWebhook = Parameters<typeof api.enviar>[0];
+
 /** Escribe como paciente: manda al webhook y muestra la conversación mientras llega la respuesta. */
 export function Simulador() {
   const [telefono, setTelefono] = useState(telefonoAlAzar);
@@ -28,36 +30,53 @@ export function Simulador() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<ErrorApi | Error | null>(null);
   const [conversacion, setConversacion] = useState<number | null>(null);
+  const [ultimo, setUltimo] = useState<CuerpoWebhook | null>(null);
+  const [recibo, setRecibo] = useState<RespuestaWebhook | null>(null);
 
-  const enviar = async (evento?: FormEvent, ejemplo?: (typeof EJEMPLOS)[number]) => {
-    evento?.preventDefault();
-    const cuerpoTexto = ejemplo?.texto ?? texto;
+  const mandar = async (cuerpo: CuerpoWebhook): Promise<boolean> => {
     setEnviando(true);
     setError(null);
+    setRecibo(null);
     try {
-      const respuesta = await api.enviar({
-        message_id: `sim-${crypto.randomUUID()}`,
-        from: telefono,
-        text: cuerpoTexto,
-        timestamp: ejemplo?.timestamp ?? (horaActual ? new Date().toISOString() : aIsoColombia(horaLocal)),
-      });
+      const respuesta = await api.enviar(cuerpo);
       setConversacion(respuesta.conversacion_id);
-      if (!ejemplo) setTexto('');
+      setUltimo(cuerpo);
+      setRecibo(respuesta);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
+      return false;
     } finally {
       setEnviando(false);
     }
   };
 
+  const enviar = async (evento?: FormEvent, ejemplo?: (typeof EJEMPLOS)[number]) => {
+    evento?.preventDefault();
+    const enviado = await mandar({
+      message_id: `sim-${crypto.randomUUID()}`,
+      from: telefono,
+      text: ejemplo?.texto ?? texto,
+      timestamp: ejemplo?.timestamp ?? (horaActual ? new Date().toISOString() : aIsoColombia(horaLocal)),
+    });
+    if (enviado && !ejemplo) setTexto('');
+  };
+
   return (
+    <div className="pagina">
+      <header className="pagina-cabecera">
+        <div>
+          <h1>Simulador de paciente</h1>
+          <p className="tenue">Envía mensajes al webhook como si llegaran por WhatsApp y mira la respuesta del asistente.</p>
+        </div>
+      </header>
     <div className="simulador">
-      <form onSubmit={(e) => void enviar(e)}>
+      <form className="tarjeta" onSubmit={(e) => void enviar(e)}>
         <label>
           Teléfono del paciente
           <span className="en-linea">
             <input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-            <button type="button" onClick={() => { setTelefono(telefonoAlAzar()); setConversacion(null); }}>
+            <button type="button" onClick={() => { setTelefono(telefonoAlAzar()); setConversacion(null); setUltimo(null); setRecibo(null); }}>
               Paciente nuevo
             </button>
           </span>
@@ -85,6 +104,21 @@ export function Simulador() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          disabled={enviando || ultimo === null}
+          onClick={() => ultimo && void mandar(ultimo)}
+          title="Simula que WhatsApp reenvía el mismo mensaje: el webhook debe responder «duplicado» y no procesarlo otra vez"
+        >
+          Reenviar el último (mismo message_id)
+        </button>
+        {recibo && (
+          <div className="aviso-ok" role="status">
+            {recibo.estado === 'duplicado'
+              ? `200 · duplicado: ${recibo.message_id} ya había llegado y no se procesó otra vez.`
+              : `202 · recibido: ${recibo.message_id} quedó en cola para el asistente.`}
+          </div>
+        )}
         {error && (
           <div className="aviso-error" role="alert">
             {error.message}
@@ -100,7 +134,8 @@ export function Simulador() {
           </div>
         )}
       </form>
-      <div className="panel">{conversacion ? <Detalle id={conversacion} /> : <p className="tenue">Envía un mensaje para ver la conversación.</p>}</div>
+      <div className="tarjeta panel">{conversacion ? <Detalle id={conversacion} /> : <p className="vacio">Envía un mensaje para ver la conversación.</p>}</div>
+    </div>
     </div>
   );
 }

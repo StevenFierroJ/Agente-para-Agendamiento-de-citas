@@ -18,6 +18,8 @@ export function Detalle({ id }: { id: number }) {
   if (!datos) return error ? <Aviso error={error} onReintentar={recargar} /> : null;
 
   const turnoDe = new Map(datos.turnos.map((t) => [t.message_id, t]));
+  // La última respuesta se muestra con su traza abierta: es la que se acaba de probar.
+  const ultimaRespuesta = datos.mensajes.findLast((m) => m.rol === 'asistente' && turnoDe.has(m.message_id))?.id;
   return (
     <section className="detalle">
       {error && <Aviso error={error} onReintentar={recargar} />}
@@ -44,7 +46,9 @@ export function Detalle({ id }: { id: number }) {
           <li key={m.id} className={`mensaje mensaje-${m.rol}`}>
             <div className="burbuja">{m.texto}</div>
             <div className="tenue">{fechaColombia(m.fecha)}</div>
-            {m.rol === 'asistente' && turnoDe.get(m.message_id) && <TurnoDetalle turno={turnoDe.get(m.message_id)!} />}
+            {m.rol === 'asistente' && turnoDe.get(m.message_id) && (
+              <TurnoDetalle key={m.message_id} turno={turnoDe.get(m.message_id)!} abiertoAlInicio={m.id === ultimaRespuesta} />
+            )}
           </li>
         ))}
         {datos.pendientes.map((p) => (

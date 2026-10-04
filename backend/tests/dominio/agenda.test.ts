@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decidirAgendamiento, horariosLibres, normalizar, resolverNombre, validarNombrePaciente } from '../../src/dominio/agenda.js';
+import { decidirAgendamiento, franjasPorDia, horariosLibres, normalizar, resolverNombre, validarNombrePaciente } from '../../src/dominio/agenda.js';
 import { ahoraDelMensaje } from '../../src/dominio/fechas.js';
 
 const SEDES = [{ id: 1, nombre: 'Sede Norte' }, { id: 2, nombre: 'Sede Sur' }];
@@ -44,8 +44,9 @@ describe('validarNombrePaciente', () => {
 
 describe('decidirAgendamiento', () => {
   const ahora = ahoraDelMensaje(new Date('2026-10-07T14:00:00Z')); // miércoles 09:00 en Cali
-  const futuro = { id: 10, inicio: new Date('2026-10-07T15:00:00Z') };
-  const pasado = { id: 11, inicio: new Date('2026-10-07T13:00:00Z') };
+  const futuro = { id: 10, inicio: new Date('2026-10-07T15:00:00Z'), ofrecido: true };
+  const pasado = { id: 11, inicio: new Date('2026-10-07T13:00:00Z'), ofrecido: true };
+  const noOfrecido = { id: 12, inicio: new Date('2026-10-07T15:00:00Z'), ofrecido: false };
 
   it('agenda un horario libre y futuro', () => {
     expect(decidirAgendamiento(futuro, null, 1, ahora)).toEqual({ tipo: 'agendar' });
@@ -70,6 +71,19 @@ describe('decidirAgendamiento', () => {
   it('el reintento que llega después de la hora sigue devolviendo la misma cita', () => {
     expect(decidirAgendamiento(pasado, { id: 6, conversacionId: 1 }, 1, ahora)).toEqual({ tipo: 'ya_es_tuya', citaId: 6 });
   });
+
+  it('un horario libre y futuro que no se ofreció en esta conversación no se agenda (D-34)', () => {
+    expect(decidirAgendamiento(noOfrecido, null, 1, ahora)).toEqual({ tipo: 'error', error: 'horario_no_ofrecido' });
+  });
+
+  it('no ofrecido pesa más que ocupado o pasado: no se le confirma al modelo nada de un id inventado', () => {
+    expect(decidirAgendamiento(noOfrecido, { id: 5, conversacionId: 2 }, 1, ahora)).toEqual({ tipo: 'error', error: 'horario_no_ofrecido' });
+    expect(decidirAgendamiento({ ...noOfrecido, inicio: pasado.inicio }, null, 1, ahora)).toEqual({ tipo: 'error', error: 'horario_no_ofrecido' });
+  });
+
+  it('la cita ya agendada por esta conversación se devuelve aunque el registro de ofrecidos no esté (reintento)', () => {
+    expect(decidirAgendamiento(noOfrecido, { id: 7, conversacionId: 1 }, 1, ahora)).toEqual({ tipo: 'ya_es_tuya', citaId: 7 });
+  });
 });
 
 describe('horariosLibres', () => {
@@ -85,5 +99,38 @@ describe('horariosLibres', () => {
       ahora,
     );
     expect(libres.map((h) => h.id)).toEqual([4, 3]);
+  });
+});
+
+describe('franjasPorDia', () => {
+  // Bloques de 30 minutos en hora de Colombia (UTC-5).
+  const bloque = (inicioCali: string) => {
+    const inicio = new Date(`${inicioCali}:00-05:00`);
+    return { inicio, fin: new Date(inicio.getTime() + 30 * 60_000) };
+  };
+
+  it('une bloques contiguos, parte en los huecos y separa por día local', () => {
+    const franjas = franjasPorDia([
+      bloque('2026-10-06T08:00'), bloque('2026-10-06T08:30'), bloque('2026-10-06T09:00'),
+      bloque('2026-10-06T14:00'),
+      bloque('2026-10-07T07:00'),
+    ]);
+    expect(franjas).toEqual([
+      { fecha: '2026-10-06', dia: 'martes', franjas: ['08:00-09:30', '14:00-14:30'] },
+      { fecha: '2026-10-07', dia: 'miércoles', franjas: ['07:00-07:30'] },
+    ]);
+  });
+
+  it('dos profesionales a la misma hora cuentan una vez, y el orden de entrada no importa', () => {
+    const franjas = franjasPorDia([bloque('2026-10-06T08:30'), bloque('2026-10-06T08:00'), bloque('2026-10-06T08:00')]);
+    expect(franjas).toEqual([{ fecha: '2026-10-06', dia: 'martes', franjas: ['08:00-09:00'] }]);
+  });
+
+  it('un bloque de las 22:30 en Cali (03:30 UTC del día siguiente) es del día local', () => {
+    expect(franjasPorDia([bloque('2026-10-05T22:30')])[0]?.fecha).toBe('2026-10-05');
+  });
+
+  it('sin horarios, sin días', () => {
+    expect(franjasPorDia([])).toEqual([]);
   });
 });

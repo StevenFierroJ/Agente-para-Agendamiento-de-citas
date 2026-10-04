@@ -9,17 +9,39 @@ const VIOLACION_DE_UNICIDAD = '23505';
 export class AgendaPostgres implements Agenda {
   constructor(private readonly pool: pg.Pool) {}
 
-  /** Usa el índice (sede_id, inicio). */
+  /** Horarios de una especialidad en una sede entre `desde` y `hasta` (un día o un rango). Usa el índice (sede_id, inicio). */
   async horariosDelDia(especialidadId: number, sedeId: number, desde: Date, hasta: Date): Promise<HorarioDelDia[]> {
-    const { rows } = await this.pool.query<{ id: number; inicio: Date; profesional: string; ocupado: boolean }>(
-      `SELECT h.id, h.inicio, p.nombre AS profesional,
+    const { rows } = await this.pool.query<{ id: number; inicio: Date; fin: Date; profesional: string; ocupado: boolean }>(
+      `SELECT h.id, h.inicio, h.fin, p.nombre AS profesional,
               EXISTS (SELECT 1 FROM citas c WHERE c.horario_id = h.id AND c.estado = 'activa') AS ocupado
          FROM horarios h JOIN profesionales p ON p.id = h.profesional_id
         WHERE h.sede_id = $1 AND h.inicio >= $2 AND h.inicio < $3 AND p.especialidad_id = $4
         ORDER BY h.inicio, p.nombre`,
       [sedeId, desde, hasta, especialidadId],
     );
-    return rows.map((f) => ({ horarioId: f.id, inicio: f.inicio, profesional: f.profesional, ocupado: f.ocupado }));
+    return rows.map((f) => ({ horarioId: f.id, inicio: f.inicio, fin: f.fin, profesional: f.profesional, ocupado: f.ocupado }));
+  }
+
+  /** Usa el índice (sede_id, inicio). */
+  async horariosQueEmpiezan(especialidadId: number, sedeId: number, inicio: Date): Promise<{ horarioId: number; profesional: string }[]> {
+    const { rows } = await this.pool.query<{ id: number; profesional: string }>(
+      `SELECT h.id, p.nombre AS profesional
+         FROM horarios h JOIN profesionales p ON p.id = h.profesional_id
+        WHERE h.sede_id = $1 AND h.inicio = $2 AND p.especialidad_id = $3
+        ORDER BY p.nombre`,
+      [sedeId, inicio, especialidadId],
+    );
+    return rows.map((f) => ({ horarioId: f.id, profesional: f.profesional }));
+  }
+
+  async registrarOfrecidos(conversacionId: number, horarioIds: readonly number[]): Promise<void> {
+    if (horarioIds.length === 0) return;
+    await this.pool.query(
+      `INSERT INTO horarios_ofrecidos (conversacion_id, horario_id)
+       SELECT $1, unnest($2::int[])
+       ON CONFLICT (conversacion_id, horario_id) DO UPDATE SET ofrecido_en = now()`,
+      [conversacionId, horarioIds],
+    );
   }
 
   async agendar(
@@ -29,7 +51,7 @@ export class AgendaPostgres implements Agenda {
     const cliente = await this.pool.connect();
     try {
       await cliente.query('BEGIN');
-      const horario = await leerHorario(cliente, pedido.horarioId);
+      const horario = await leerHorario(cliente, pedido.horarioId, pedido.conversacionId);
       const citaActiva = horario ? await leerCitaActiva(cliente, horario.id) : null;
       const decision = decidir(horario, citaActiva);
 
@@ -70,15 +92,16 @@ export class AgendaPostgres implements Agenda {
   }
 }
 
-async function leerHorario(cliente: pg.PoolClient, horarioId: number): Promise<HorarioParaAgendar | null> {
+async function leerHorario(cliente: pg.PoolClient, horarioId: number, conversacionId: number): Promise<HorarioParaAgendar | null> {
   const { rows } = await cliente.query<HorarioParaAgendar>(
-    `SELECT h.id, h.inicio, e.nombre AS especialidad, s.nombre AS sede, p.nombre AS profesional
+    `SELECT h.id, h.inicio, e.nombre AS especialidad, s.nombre AS sede, p.nombre AS profesional,
+            EXISTS (SELECT 1 FROM horarios_ofrecidos o WHERE o.conversacion_id = $2 AND o.horario_id = h.id) AS ofrecido
        FROM horarios h
        JOIN profesionales p ON p.id = h.profesional_id
        JOIN especialidades e ON e.id = p.especialidad_id
        JOIN sedes s ON s.id = h.sede_id
       WHERE h.id = $1`,
-    [horarioId],
+    [horarioId, conversacionId],
   );
   return rows[0] ?? null;
 }

@@ -26,13 +26,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Medicina general",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-07T11:00"
-                  }
-                },
+                "especialidad": "Medicina general",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "11:00",
                 "nombre_paciente": "Juan 123"
               }
             }

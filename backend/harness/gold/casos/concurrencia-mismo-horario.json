@@ -28,13 +28,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Dermatología",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-07T15:00"
-                  }
-                },
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "15:00",
                 "nombre_paciente": "Carla Mejía"
               }
             }
@@ -70,13 +67,10 @@
             {
               "nombre": "agendar_cita",
               "argumentos": {
-                "horario_id": {
-                  "$horario": {
-                    "especialidad": "Dermatología",
-                    "sede": "Sede Norte",
-                    "inicio": "2026-10-07T15:00"
-                  }
-                },
+                "especialidad": "Dermatología",
+                "sede": "Sede Norte",
+                "fecha": "2026-10-07",
+                "hora": "15:00",
                 "nombre_paciente": "David Rojas"
               }
             }
@@ -101,5 +95,25 @@
       "cita_agendada": 1,
       "resuelta_por_ia": 1
     }
+  },
+  "preparacion": {
+    "ofrecidos": [
+      {
+        "telefono": "+573000000026",
+        "horario": {
+          "especialidad": "Dermatología",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-07T15:00"
+        }
+      },
+      {
+        "telefono": "+573000000027",
+        "horario": {
+          "especialidad": "Dermatología",
+          "sede": "Sede Norte",
+          "inicio": "2026-10-07T15:00"
+        }
+      }
+    ]
   }
 }

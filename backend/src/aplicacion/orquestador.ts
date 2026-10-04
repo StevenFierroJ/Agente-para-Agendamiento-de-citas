@@ -1,7 +1,8 @@
 import type { DateTime } from 'luxon';
 import { estadoFinalDelTurno, type EstadoFinalTurno } from '../dominio/estados.js';
-import { afirmaCitaAgendada, mencionaReservaDeCita, prometeEscalamiento } from '../dominio/promesas.js';
-import { datosSinRespaldo } from '../dominio/respaldo.js';
+import { afirmaCitaAgendada, diceNoSaber, mencionaReservaDeCita, preguntaPorLosDocumentos, prometeEscalamiento } from '../dominio/promesas.js';
+import { fechasIncoherentes } from '../dominio/fechas.js';
+import { citarEnContexto, datosSinRespaldo } from '../dominio/respaldo.js';
 import type { EstadoConversacion } from '../dominio/errores.js';
 import {
   MENSAJE_CITA_NO_CONFIRMADA, MENSAJE_CONVERSACION_ESCALADA, MENSAJE_ESCALADO, MENSAJE_FALLA_TECNICA, MENSAJE_SIN_RESPALDO, MENSAJE_TOPE_ITERACIONES,
@@ -62,6 +63,7 @@ export interface EntradaTurno {
 
 const HERRAMIENTA_AGENDAR = 'agendar_cita';
 const HERRAMIENTA_ESCALAR = 'escalar_a_humano';
+const HERRAMIENTA_CONOCIMIENTO = 'buscar_conocimiento';
 const INTENTOS_POR_LLAMADA = 2; // una llamada y un reintento
 
 class FallaLlm extends Error {}
@@ -95,9 +97,17 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
   const mensajes: MensajeLlm[] = [{ rol: 'sistema', contenido: entrada.promptSistema }, ...entrada.historial];
   const hechos = { agendoCita: false, escaloElModelo: false, agotoIteraciones: false, fallaDelLlm: false, datoSinRespaldo: false, escalamientoPrometido: false, citaNoAgendada: false };
   let citaAgendada: Record<string, unknown> | null = null;
+  let buscoConocimiento = false;
+  // El mensaje actual del paciente: siempre el último del historial (D-28).
+  const ultimo = entrada.historial.at(-1);
+  const preguntaDelPaciente = ultimo && ultimo.rol === 'paciente' ? ultimo.contenido : '';
   // Evidencia del turno para la barandilla de datos (D-26): lo que el modelo puede
   // citar. Sus propios argumentos no cuentan: podrían ser inventados.
   const evidencias: string[] = [entrada.promptSistema, ...entrada.historial.flatMap((m) => ('contenido' in m ? [m.contenido] : []))];
+  // Las horas son más estrictas: solo las respaldan datos (el prompt, que trae los
+  // horarios ofrecidos, y las herramientas del turno), no lo que el modelo o el
+  // paciente dijeron antes. Para hablar de horas, el modelo consulta (D-38).
+  const evidenciasDeHoras: string[] = [entrada.promptSistema];
 
   while (resultado.iteraciones < deps.maxIteraciones) {
     resultado.iteraciones++;
@@ -130,16 +140,17 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
       }
 
       // Barandilla: todo dato verificable de la respuesta tiene que estar en la evidencia.
-      const sinRespaldo = datosSinRespaldo(texto, evidencias);
+      // Más las fechas con un día de la semana que no les corresponde ("lunes 7" si el 7 es miércoles, D-39).
+      const sinRespaldo = [...datosSinRespaldo(texto, evidencias, evidenciasDeHoras), ...fechasIncoherentes(texto, entrada.ahora)];
       if (sinRespaldo.length > 0) {
         const yaCorregido = resultado.controles.some((c) => c.tipo === 'datos_sin_respaldo');
         if (!yaCorregido && resultado.iteraciones < deps.maxIteraciones) {
-          resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'corregir' });
+          resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'corregir', borrador: texto });
           mensajes.push({ rol: 'asistente', contenido: texto });
-          mensajes.push({ rol: 'control', contenido: mensajeDeCorreccion(sinRespaldo) });
+          mensajes.push({ rol: 'control', contenido: mensajeDeCorreccion(citarEnContexto(texto, sinRespaldo)) });
           continue;
         }
-        resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'descartar' });
+        resultado.controles.push({ tipo: 'datos_sin_respaldo', datos: sinRespaldo, accion: 'descartar', borrador: texto });
         hechos.datoSinRespaldo = true;
         resultado.error = `datos_sin_respaldo: ${sinRespaldo.join(', ')}`;
         resultado.respuesta = MENSAJE_SIN_RESPALDO;
@@ -151,17 +162,27 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
       if (!hechos.agendoCita && entrada.citasActivas === 0 && (await afirmaCita(texto, deps.verificador, resultado.controles))) {
         const yaCorregida = resultado.controles.some((c) => c.tipo === 'cita_no_agendada');
         if (!yaCorregida && resultado.iteraciones < deps.maxIteraciones) {
-          resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'corregir' });
+          resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'corregir', borrador: texto });
           mensajes.push({ rol: 'asistente', contenido: texto });
           mensajes.push({ rol: 'control', contenido: CORRECCION_CITA });
           continue;
         }
-        resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'descartar' });
+        resultado.controles.push({ tipo: 'cita_no_agendada', datos: [], accion: 'descartar', borrador: texto });
         hechos.citaNoAgendada = true;
         resultado.error = 'cita_no_agendada: la respuesta afirmó una cita que no se agendó';
         resultado.respuesta = MENSAJE_CITA_NO_CONFIRMADA;
         resultado.estadoFinal = estadoFinalDelTurno(hechos);
         return resultado;
+      }
+
+      // Barandilla: responder sin buscar en los documentos cuando el paciente preguntó por un tema
+      // que solo ellos cubren, o decir "no tengo esa información" sin haber buscado (D-41).
+      // Se pide buscar una vez; si después de buscar sigue sin el dato, abstenerse es lo correcto.
+      if (!buscoConocimiento && !hechos.escaloElModelo && !hechos.agendoCita && (diceNoSaber(texto) || preguntaPorLosDocumentos(preguntaDelPaciente)) && !resultado.controles.some((c) => c.tipo === 'abstencion_sin_busqueda') && resultado.iteraciones < deps.maxIteraciones) {
+        resultado.controles.push({ tipo: 'abstencion_sin_busqueda', datos: [], accion: 'corregir', borrador: texto });
+        mensajes.push({ rol: 'asistente', contenido: texto });
+        mensajes.push({ rol: 'control', contenido: CORRECCION_ABSTENCION });
+        continue;
       }
 
       // Barandilla: si prometió pasar con un humano sin usar la herramienta, el código cumple la promesa.
@@ -191,8 +212,11 @@ export async function ejecutarTurno(entrada: EntradaTurno, deps: DependenciasOrq
         citaAgendada = salida.datos as Record<string, unknown>;
       }
       if (salida.ok && llamada.nombre === HERRAMIENTA_ESCALAR) hechos.escaloElModelo = true;
+      if (llamada.nombre === HERRAMIENTA_CONOCIMIENTO) buscoConocimiento = true;
       mensajes.push({ rol: 'herramienta', llamadaId: llamada.id, contenido: JSON.stringify(salida), esError: !salida.ok });
-      evidencias.push(JSON.stringify(salida, (clave, valor: unknown) => (clave === 'similitud' ? undefined : valor)));
+      const evidencia = JSON.stringify(salida, (clave, valor: unknown) => (clave === 'similitud' ? undefined : valor));
+      evidencias.push(evidencia);
+      evidenciasDeHoras.push(evidencia);
     }
   }
 
@@ -294,8 +318,8 @@ async function afirmaCita(texto: string, verificador: VerificadorAfirmaciones | 
 }
 
 const CORRECCION_CITA = [
-  'Control automático: tu respuesta afirma que la cita quedó agendada, pero en este turno no se llamó a agendar_cita.',
-  'Una cita solo existe si agendar_cita responde con éxito: consulta la disponibilidad para obtener el horario_id y llama a agendar_cita.',
+  'Control automático (el paciente no lo ve: no lo menciones ni agradezcas la corrección; responde directamente): tu respuesta afirma que la cita quedó agendada, pero en este turno no se llamó a agendar_cita.',
+  'Una cita solo existe si agendar_cita responde con éxito: consulta la disponibilidad del día elegido y llama a agendar_cita con la hora que eligió el paciente.',
   'Si te falta algún dato, pregúntalo y no afirmes que la cita está agendada.',
 ].join(' ');
 
@@ -305,10 +329,16 @@ function confirmacionDeCita(datos: Record<string, unknown>): string {
   return `Tu cita quedó agendada: ${String(datos['especialidad'])} en la ${String(datos['sede'])}, el ${inicio}, con ${String(datos['profesional'])}.`;
 }
 
+const CORRECCION_ABSTENCION = [
+  'Control automático (el paciente no lo ve: no lo menciones ni agradezcas la corrección; responde directamente): respondiste sin buscar en los documentos de la clínica, y el paciente preguntó por algo que solo ellos responden (coberturas, prepagadas, precios, pagos, preparación, cancelación, qué llevar, sedes) o dijiste que no tienes la información.',
+  'Búscala ahora con buscar_conocimiento (una búsqueda por tema) y responde con lo que devuelva. Si después de buscar no está, dilo.',
+].join(' ');
+
 function mensajeDeCorreccion(datos: readonly string[]): string {
   return [
-    `Control automático: tu respuesta incluye datos que no aparecen en los resultados de las herramientas ni en la conversación: ${datos.join(', ')}.`,
-    'Reescríbela usando solo datos que devolvieron las herramientas. Si no tienes el dato, dilo y ofrece comunicar al paciente con un asesor.',
+    `Control automático (el paciente no lo ve: no lo menciones ni agradezcas la corrección; responde directamente): tu respuesta incluye datos que no aparecen en los resultados de las herramientas ni en la conversación: ${datos.join('; ')}.`,
+    'Reescríbela usando solo datos que devolvieron las herramientas. Si un número es un conteo o algo que dedujiste, quítalo o escribe el dato tal como aparece en la fuente. Si no tienes el dato, dilo y ofrece comunicar al paciente con un asesor; no descartes por eso el resto de la respuesta.',
+    'Para los días de la semana, usa el calendario del prompt de sistema. Si agendaste o consultaste un día distinto del que pidió el paciente, díselo.',
   ].join(' ');
 }
 

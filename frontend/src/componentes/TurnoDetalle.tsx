@@ -1,12 +1,21 @@
+import { useEffect, useRef } from 'react';
 import { usd, type Turno } from '../api';
 import { EtiquetaEstado } from './Estado';
 
-/** Lo que pasó detrás de una respuesta: modelo, tokens, costo, latencia, herramientas y controles. */
-export function TurnoDetalle({ turno }: { turno: Turno }) {
+/**
+ * Lo que pasó detrás de una respuesta: modelo, tokens, costo, latencia, herramientas y controles.
+ * `abiertoAlInicio` lo despliega solo al montar: después lo abre o cierra quien lee.
+ */
+export function TurnoDetalle({ turno, abiertoAlInicio = false }: { turno: Turno; abiertoAlInicio?: boolean }) {
   const controles = turno.controles ?? [];
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (abiertoAlInicio && ref.current) ref.current.open = true;
+    // Solo al montar: un turno nuevo no debe cerrar ni abrir los que el usuario ya movió.
+  }, []);
   return (
-    <details className="turno">
-      <summary>
+    <details className="turno" ref={ref}>
+      <summary title="Ver herramientas, argumentos y resultados">
         <EtiquetaEstado estado={turno.estado_final} />
         <span>{turno.herramientas.length ? turno.herramientas.map((h) => h.nombre + (h.error ? ' ✗' : ' ✓')).join(' · ') : 'sin herramientas'}</span>
         <span className="tenue">
@@ -42,9 +51,17 @@ export function TurnoDetalle({ turno }: { turno: Turno }) {
                     ? 'prometió un asesor sin escalar: el código escaló'
                     : c.tipo === 'verificador_no_disponible'
                       ? `verificador no disponible, decidieron las reglas: ${c.datos.join(', ')}`
+                    : c.tipo === 'abstencion_sin_busqueda'
+                      ? 'dijo que no tenía la información sin buscar → pidió buscar en los documentos'
                     : `${c.tipo === 'cita_no_agendada' ? 'afirmó una cita sin agendarla' : 'datos sin respaldo'} → ${
                         c.accion === 'corregir' ? 'pidió corregir' : 'descartó la respuesta'
                       }${c.datos.length ? `: ${c.datos.join(', ')}` : ''}`}
+                  {c.borrador && (
+                    <details className="borrador">
+                      <summary>ver lo que escribió el modelo</summary>
+                      <p>{c.borrador}</p>
+                    </details>
+                  )}
                 </div>
               ))}
             </dd>
